@@ -1,0 +1,61 @@
+=== Baseline: one big heap table ===
+SERVICE_TY    RECORDS	 REVENUE
+---------- ---------- ----------
+VOICE	       128397 2781619.74
+SMS		64382	 22533.7
+DATA	       214795	 4834256
+ROAMING 	21426 1129349.59
+4 rows selected.
+Elapsed: 00:00:02.23
+PLAN_TABLE_OUTPUT
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+EXPLAINED SQL STATEMENT:
+------------------------
+select service_type, count(*) records, sum(amount) revenue from
+billing_records_base where  bill_date >= date '2026-10-01' and
+bill_date < date '2026-11-01' group  by service_type
+Plan hash value: 4279927961
+-----------------------------------------------------------
+| Id  | Operation	   | Name		  | Rows  |
+-----------------------------------------------------------
+|   0 | SELECT STATEMENT   |			  |	  |
+|   1 |  HASH GROUP BY	   |			  |	4 |
+|   2 |   TABLE ACCESS FULL| BILLING_RECORDS_BASE |   336K|
+-----------------------------------------------------------
+16 rows selected.
+Elapsed: 00:00:00.18
+=== Partitioned: partition pruning reads only October 2026 ===
+SERVICE_TY    RECORDS	 REVENUE
+---------- ---------- ----------
+VOICE	       128397 2781619.74
+SMS		64382	 22533.7
+DATA	       214795	 4834256
+ROAMING 	21426 1129349.59
+4 rows selected.
+Elapsed: 00:00:00.12
+PLAN_TABLE_OUTPUT
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+EXPLAINED SQL STATEMENT:
+------------------------
+select service_type, count(*) records, sum(amount) revenue from
+billing_records where  bill_date >= date '2026-10-01' and bill_date <
+date '2026-11-01' group  by service_type
+Plan hash value: 2619499541
+---------------------------------------------------------------------------
+| Id  | Operation		| Name		  | Rows  | Pstart| Pstop |
+---------------------------------------------------------------------------
+|   0 | SELECT STATEMENT	|		  |	  |	  |	  |
+|   1 |  HASH GROUP BY		|		  |	4 |	  |	  |
+|   2 |   PARTITION RANGE SINGLE|		  |   429K|    73 |    73 |
+|   3 |    TABLE ACCESS FULL	| BILLING_RECORDS |   429K|    73 |    73 |
+---------------------------------------------------------------------------
+17 rows selected.
+Elapsed: 00:00:00.01
+=== PARTITION RANGE SINGLE: one partition read. For interval partitioning ===
+=== Pstart/Pstop is the interval number counted from P_INITIAL		 ===
+=== (month 73 since 2020-10), not the current position: it is		 ===
+PARTITION_NA   NUM_ROWS TABLESPACE_NAME
+------------ ---------- ------------------------------
+P_202610	 429000 TELCO_HOT
+1 row selected.
+Elapsed: 00:00:00.02

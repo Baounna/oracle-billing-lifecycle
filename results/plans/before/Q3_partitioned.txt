@@ -1,0 +1,31 @@
+-- Q3 Annual revenue by region and service (2025) | partitioned | BILLING_RECORDS
+select region_code, service_type, sum(amount) revenue, sum(tax_amount) tax
+                  from BILLING_RECORDS
+                  where bill_date >= :d1 and bill_date < :d2
+                  group by region_code, service_type
+
+SQL_ID  1twnn4ax475zc, child number 0
+-------------------------------------
+select region_code, service_type, sum(amount) revenue, sum(tax_amount) 
+tax                   from BILLING_RECORDS                   where 
+bill_date >= :d1 and bill_date < :d2                   group by 
+region_code, service_type
+ 
+Plan hash value: 1698773432
+ 
+------------------------------------------------------------------------------------------------------
+| Id  | Operation                  | Name            | Rows  | Cost (%CPU)| Time     | Pstart| Pstop |
+------------------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT           |                 |       | 56541 (100)|          |       |       |
+|   1 |  HASH GROUP BY             |                 |    34 | 56541   (1)| 00:00:03 |       |       |
+|*  2 |   FILTER                   |                 |       |            |          |       |       |
+|   3 |    PARTITION RANGE ITERATOR|                 |  3958K| 56479   (1)| 00:00:03 |   KEY |   KEY |
+|*  4 |     TABLE ACCESS FULL      | BILLING_RECORDS |  3958K| 56479   (1)| 00:00:03 |   KEY |   KEY |
+------------------------------------------------------------------------------------------------------
+ 
+Predicate Information (identified by operation id):
+---------------------------------------------------
+ 
+   2 - filter(:D2>:D1)
+   4 - filter(("BILL_DATE">=:D1 AND "BILL_DATE"<:D2))
+ 

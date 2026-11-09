@@ -1,0 +1,35 @@
+=== Retention policy (DLM_CONFIG) ===
+PARAM_NAME	       PARAM_VALU DESCRIPTION
+---------------------- ---------- --------------------------------------------------------------------------------
+AS_OF_MONTH	       2026-11	  Reference month (YYYY-MM) treated as "today" by lifecycle jobs (reproducible run
+				  s)
+HOT_MONTHS	       12	  Months kept uncompressed and read/write in TELCO_HOT
+MIN_RETENTION_MONTHS   60	  Safety floor: purge refuses any retention shorter than this value
+ONLINE_MONTHS	       36	  Months kept in BILLING_RECORDS (hot + warm); older months move to BILLING_ARCHIV
+				  E
+RETENTION_MONTHS       60	  Legal retention of billing data; older months are purged
+5 rows selected.
+Elapsed: 00:00:00.01
+=== BILLING_RECORDS partitions by tier ===
+TIER	 TABLESPACE_N COMPRESS PARTITIONS FIRST_PART LAST_PART	  NUM_ROWS
+-------- ------------ -------- ---------- ---------- ---------- ----------
+HOT	 TELCO_HOT    DISABLED	       13 P_202510   P_202610	   5359479
+WARM	 TELCO_ARCH   ENABLED	       24 P_202310   P_202509	   8656225
+2 rows selected.
+Elapsed: 00:00:00.04
+=== BILLING_ARCHIVE partitions ===
+PARTITIONS FIRST_PART LAST_PART    NUM_ROWS
+---------- ---------- ---------- ----------
+	24 P_202110   P_202309	    7049916
+1 row selected.
+Elapsed: 00:00:00.01
+=== Size per table (MB, incl. indexes) ===
+TABLE_NAME			 MB
+------------------------ ----------
+BILLING_ARCHIVE 		586
+BILLING_CONTROL_TOTALS		  0
+BILLING_RECORDS 	       1898
+BILLING_RECORDS_BASE	       3152
+BILLING_XCHG			  8
+5 rows selected.
+Elapsed: 00:00:00.34

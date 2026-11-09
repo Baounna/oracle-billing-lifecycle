@@ -1,0 +1,31 @@
+-- Q2 Customer bill history, last 3 months | partitioned | BILLING_RECORDS
+select bill_date, service_type, amount, payment_status
+                  from BILLING_RECORDS
+                  where customer_id = :cust and bill_date >= :d1 and bill_date < :d2
+                  order by bill_date
+
+SQL_ID  4qzjru6z43k9c, child number 0
+-------------------------------------
+select bill_date, service_type, amount, payment_status                  
+ from BILLING_RECORDS                   where customer_id = :cust and 
+bill_date >= :d1 and bill_date < :d2                   order by 
+bill_date
+ 
+Plan hash value: 814642085
+ 
+----------------------------------------------------------------------------------------------------------------
+| Id  | Operation                           | Name             | Rows  | Cost (%CPU)| Time     | Pstart| Pstop |
+----------------------------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                    |                  |       |    82 (100)|          |       |       |
+|*  1 |  FILTER                             |                  |       |            |          |       |       |
+|   2 |   PARTITION RANGE ITERATOR          |                  |     2 |    82   (0)| 00:00:01 |   KEY |   KEY |
+|   3 |    TABLE ACCESS BY LOCAL INDEX ROWID| BILLING_RECORDS  |     2 |    82   (0)| 00:00:01 |   KEY |   KEY |
+|*  4 |     INDEX RANGE SCAN                | BILLING_CUST_LIX |     2 |    79   (0)| 00:00:01 |   KEY |   KEY |
+----------------------------------------------------------------------------------------------------------------
+ 
+Predicate Information (identified by operation id):
+---------------------------------------------------
+ 
+   1 - filter(:D2>:D1)
+   4 - access("CUSTOMER_ID"=:CUST AND "BILL_DATE">=:D1 AND "BILL_DATE"<:D2)
+ 

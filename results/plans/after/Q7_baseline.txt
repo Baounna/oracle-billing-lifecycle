@@ -1,0 +1,48 @@
+-- Q7 Disputed bills in an archived month (2022-03) | baseline | BILLING_ALL_BASE
+select customer_id, count(*) records, sum(amount) total
+                  from BILLING_ALL_BASE
+                  where bill_date >= :d1 and bill_date < :d2 and payment_status = 'DISPUTED'
+                  group by customer_id
+                  order by total desc
+                  fetch first 20 rows only
+
+SQL_ID  7ffn6982zdruq, child number 0
+-------------------------------------
+select customer_id, count(*) records, sum(amount) total                 
+  from BILLING_ALL_BASE                   where bill_date >= :d1 and 
+bill_date < :d2 and payment_status = 'DISPUTED'                   group 
+by customer_id                   order by total desc                   
+fetch first 20 rows only
+ 
+Plan hash value: 1636902299
+ 
+------------------------------------------------------------------------------------------------------------
+| Id  | Operation                                   | Name                 | Rows  | Cost (%CPU)| Time     |
+------------------------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                            |                      |       | 23519 (100)|          |
+|   1 |  SORT ORDER BY                              |                      |    20 | 23519   (1)| 00:00:01 |
+|*  2 |   VIEW                                      |                      |    20 | 23518   (1)| 00:00:01 |
+|*  3 |    WINDOW SORT PUSHED RANK                  |                      |  3021 | 23518   (1)| 00:00:01 |
+|   4 |     HASH GROUP BY                           |                      |  3021 | 23518   (1)| 00:00:01 |
+|*  5 |      FILTER                                 |                      |       |            |          |
+|   6 |       VIEW                                  | BILLING_ALL_BASE     |  3029 | 23516   (1)| 00:00:01 |
+|   7 |        UNION-ALL                            |                      |       |            |          |
+|*  8 |         FILTER                              |                      |       |            |          |
+|*  9 |          TABLE ACCESS BY INDEX ROWID BATCHED| BILLING_RECORDS_BASE |     1 |     5   (0)| 00:00:01 |
+|* 10 |           INDEX RANGE SCAN                  | BILLING_BASE_DATE_IX |     1 |     3   (0)| 00:00:01 |
+|* 11 |         FILTER                              |                      |       |            |          |
+|* 12 |          TABLE ACCESS FULL                  | BILLING_ARCHIVE_BASE |  3028 | 23511   (1)| 00:00:01 |
+------------------------------------------------------------------------------------------------------------
+ 
+Predicate Information (identified by operation id):
+---------------------------------------------------
+ 
+   2 - filter("from$_subquery$_002"."rowlimit_$$_rownumber"<=20)
+   3 - filter(ROW_NUMBER() OVER ( ORDER BY SUM("AMOUNT") DESC )<=20)
+   5 - filter(:D2>:D1)
+   8 - filter(:D2>:D1)
+   9 - filter("PAYMENT_STATUS"='DISPUTED')
+  10 - access("BILL_DATE">=:D1 AND "BILL_DATE"<:D2)
+  11 - filter(:D2>:D1)
+  12 - filter(("PAYMENT_STATUS"='DISPUTED' AND "BILL_DATE"<:D2 AND "BILL_DATE">=:D1))
+ 

@@ -1,0 +1,21 @@
+-- Q6 Revenue per year over the whole table (no date filter) | baseline | BILLING_RECORDS_BASE
+select extract(year from bill_date) yr, sum(amount) revenue
+                  from BILLING_RECORDS_BASE
+                  group by extract(year from bill_date)
+
+SQL_ID  0huda4hbq8448, child number 0
+-------------------------------------
+select extract(year from bill_date) yr, sum(amount) revenue             
+      from BILLING_RECORDS_BASE                   group by extract(year 
+from bill_date)
+ 
+Plan hash value: 4279927961
+ 
+-----------------------------------------------------------------------------------
+| Id  | Operation          | Name                 | Rows  | Cost (%CPU)| Time     |
+-----------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT   |                      |       |   120K(100)|          |
+|   1 |  HASH GROUP BY     |                      |    13M|   120K  (1)| 00:00:05 |
+|   2 |   TABLE ACCESS FULL| BILLING_RECORDS_BASE |    14M| 57570   (1)| 00:00:03 |
+-----------------------------------------------------------------------------------
+ 

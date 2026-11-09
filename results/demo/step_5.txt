@@ -1,0 +1,68 @@
+=== Guard: an operator tries to purge with a 24-month retention ===
+BEGIN dlm_pkg.purge_partition(date '2022-01-01', p_retention_months => 24); END;
+*
+ERROR at line 1:
+ORA-20010: PURGE 2022-01 refused: requested retention 24 months is below the legal floor of 60 months
+ORA-06512: at "TELCO_OWNER.DLM_PKG", line 435
+ORA-06512: at "TELCO_OWNER.DLM_PKG", line 192
+ORA-06512: at "TELCO_OWNER.DLM_PKG", line 408
+ORA-06512: at line 1
+Elapsed: 00:00:00.01
+=== Monthly job (2023-10 was archived in step 4): purge + warm + stats + validation ===
+PL/SQL procedure successfully completed.
+Elapsed: 00:00:45.52
+ACTION	   STATUS     OPERATIONS  TOTAL_SEC ROWS_PROCESSED
+---------- ---------- ---------- ---------- --------------
+PURGE	   OK		       1	.07	    261676
+RUN_END    OK		       1      45.51
+RUN_START  OK		       1	  0
+VALIDATE   OK		       1      15.57
+WARM	   OK		       1       3.22	    395535
+5 rows selected.
+Elapsed: 00:00:00.04
+MESSAGE
+----------------------------------------------------------------------
+48/48 months match control totals (from 2021-11 to 2025-10)
+1 row selected.
+Elapsed: 00:00:00.00
+=== Archived history is still one query away (BILLING_ALL) ===
+DISPUTED_2022_03
+----------------
+	    2740
+1 row selected.
+Elapsed: 00:00:00.05
+=== Retention policy (DLM_CONFIG) ===
+PARAM_NAME	       PARAM_VALU DESCRIPTION
+---------------------- ---------- --------------------------------------------------------------------------------
+AS_OF_MONTH	       2026-11	  Reference month (YYYY-MM) treated as "today" by lifecycle jobs (reproducible run
+				  s)
+HOT_MONTHS	       12	  Months kept uncompressed and read/write in TELCO_HOT
+MIN_RETENTION_MONTHS   60	  Safety floor: purge refuses any retention shorter than this value
+ONLINE_MONTHS	       36	  Months kept in BILLING_RECORDS (hot + warm); older months move to BILLING_ARCHIV
+				  E
+RETENTION_MONTHS       60	  Legal retention of billing data; older months are purged
+5 rows selected.
+Elapsed: 00:00:00.00
+=== BILLING_RECORDS partitions by tier ===
+TIER	 TABLESPACE_N COMPRESS PARTITIONS FIRST_PART LAST_PART	  NUM_ROWS
+-------- ------------ -------- ---------- ---------- ---------- ----------
+HOT	 TELCO_HOT    DISABLED	       12 P_202511   P_202610	   4963944
+WARM	 TELCO_ARCH   ENABLED	       24 P_202311   P_202510	   8723154
+2 rows selected.
+Elapsed: 00:00:00.05
+=== BILLING_ARCHIVE partitions ===
+PARTITIONS FIRST_PART LAST_PART    NUM_ROWS
+---------- ---------- ---------- ----------
+	24 P_202111   P_202310	    7116846
+1 row selected.
+Elapsed: 00:00:00.02
+=== Size per table (MB, incl. indexes) ===
+TABLE_NAME			 MB
+------------------------ ----------
+BILLING_ARCHIVE 		587
+BILLING_CONTROL_TOTALS		  0
+BILLING_RECORDS 	       1865
+BILLING_RECORDS_BASE	       3152
+BILLING_XCHG			  8
+5 rows selected.
+Elapsed: 00:00:00.32

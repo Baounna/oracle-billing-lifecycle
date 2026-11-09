@@ -1,0 +1,29 @@
+-- Q1 Monthly revenue by service (last closed month) | baseline | BILLING_RECORDS_BASE
+select service_type, count(*) records, sum(amount) revenue
+                  from BILLING_RECORDS_BASE
+                  where bill_date >= :d1 and bill_date < :d2
+                  group by service_type
+
+SQL_ID  2apxrg4tkg80k, child number 0
+-------------------------------------
+select service_type, count(*) records, sum(amount) revenue              
+     from BILLING_RECORDS_BASE                   where bill_date >= :d1 
+and bill_date < :d2                   group by service_type
+ 
+Plan hash value: 281705070
+ 
+------------------------------------------------------------------------------------
+| Id  | Operation           | Name                 | Rows  | Cost (%CPU)| Time     |
+------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT    |                      |       | 55574 (100)|          |
+|   1 |  HASH GROUP BY      |                      |     4 | 55574   (1)| 00:00:03 |
+|*  2 |   FILTER            |                      |       |            |          |
+|*  3 |    TABLE ACCESS FULL| BILLING_RECORDS_BASE |   336K| 55569   (1)| 00:00:03 |
+------------------------------------------------------------------------------------
+ 
+Predicate Information (identified by operation id):
+---------------------------------------------------
+ 
+   2 - filter(:D2>:D1)
+   3 - filter(("BILL_DATE">=:D1 AND "BILL_DATE"<:D2))
+ 

@@ -1,0 +1,30 @@
+-- Q1 Monthly revenue by service (last closed month) | partitioned | BILLING_RECORDS
+select service_type, count(*) records, sum(amount) revenue
+                  from BILLING_RECORDS
+                  where bill_date >= :d1 and bill_date < :d2
+                  group by service_type
+
+SQL_ID  dhyph8snsugm3, child number 0
+-------------------------------------
+select service_type, count(*) records, sum(amount) revenue              
+     from BILLING_RECORDS                   where bill_date >= :d1 and 
+bill_date < :d2                   group by service_type
+ 
+Plan hash value: 1698773432
+ 
+------------------------------------------------------------------------------------------------------
+| Id  | Operation                  | Name            | Rows  | Cost (%CPU)| Time     | Pstart| Pstop |
+------------------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT           |                 |       |  1044 (100)|          |       |       |
+|   1 |  HASH GROUP BY             |                 |     4 |  1044   (1)| 00:00:01 |       |       |
+|*  2 |   FILTER                   |                 |       |            |          |       |       |
+|   3 |    PARTITION RANGE ITERATOR|                 |   429K|  1037   (1)| 00:00:01 |   KEY |   KEY |
+|*  4 |     TABLE ACCESS FULL      | BILLING_RECORDS |   429K|  1037   (1)| 00:00:01 |   KEY |   KEY |
+------------------------------------------------------------------------------------------------------
+ 
+Predicate Information (identified by operation id):
+---------------------------------------------------
+ 
+   2 - filter(:D2>:D1)
+   4 - filter(("BILL_DATE">=:D1 AND "BILL_DATE"<:D2))
+ 

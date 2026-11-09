@@ -1,0 +1,57 @@
+Package created.
+Package body created.
+PASS  T01 partitioned copy matches control totals
+PASS  T02 one partition per month (72 + P_INITIAL)
+PASS  T03 dry run plans 12 purges
+PASS  T04 dry run plans 48 warm moves
+PASS  T05 dry run plans 24 archives
+PASS  T06 dry run changes nothing (partitions, tablespaces, compression, read-only)
+PASS  T07 purge refused when retention < legal floor (24 < 60)	(got ORA-20010: PURGE 2020-11 refused: requested retention 24 months is below the legal floor of 60 months)
+PASS  T08 purge refused for a month inside retention (2023-01)	(got ORA-20010: PURGE 2023-01 refused: month is still inside the 60-month retention period)
+PASS  T09 archive refused inside the 36-month online window (2024-06)  (got ORA-20010: ARCHIVE 2024-06 refused: month is still inside the 36-month online window)
+PASS  T10 warm refused for a HOT month (2026-09)  (got ORA-20010: WARM 2026-09 refused: month is still in the HOT window)
+PASS  T37 purge refused at the retention boundary (2021-11)  (got ORA-20010: PURGE 2021-11 refused: month is still inside the 60-month retention period)
+PASS  T38 archive refused at the online-window boundary (2023-11)  (got ORA-20010: ARCHIVE 2023-11 refused: month is still inside the 36-month online window)
+PASS  T39 warm refused at the HOT-window boundary (2025-11)  (got ORA-20010: WARM 2025-11 refused: month is still in the HOT window)
+PASS  T11 refusals are logged
+PASS  T12 simulated crash after exchange step 1  (got ORA-20020: Simulated failure after step 1)
+PASS  T13 no row lost during the crash: rows wait in BILLING_XCHG  (2404 rows staged)
+PASS  T14 integrity check detects the incomplete month
+PASS  T15 re-run resumes and completes the archive
+PASS  T16 resume is logged as RESUMED
+PASS  T17 integrity restored after recovery
+PASS  T34 warm of a system-named partition rebuilds its local index (by position)
+PASS  T35 re-running an interrupted warm completes it (index rebuilt, read only)
+PASS  T18 lifecycle run: 36 online months remain
+PASS  T19 lifecycle run: 24 archived months
+PASS  T20 warm months are compressed, read-only, in TELCO_ARCH
+PASS  T21 hot months untouched (TELCO_HOT, read/write)
+PASS  T22 no data older than retention remains
+PASS  T23 integrity of all retained months (billing_all vs control totals)
+PASS  T24 all indexes usable after lifecycle
+PASS  T42 every archive partition is compressed, read-only, in TELCO_ARCH
+PASS  T25 second run is a no-op (idempotent: no operation performed)
+PASS  T26 archived data cannot be modified (read-only partition)  (got ORA-14466: Data in a read-only partition or subpartition cannot be modified.)
+PASS  T27 late row in an archived month rejected by the write window  (got ORA-01402: view WITH CHECK OPTION where-clause violation)
+PASS  T28 far-future row (2030-01) rejected by the write window  (got ORA-01402: view WITH CHECK OPTION where-clause violation)
+PASS  T29 rejected rows left only EMPTY stray partitions (2022-03, 2030-01)
+PASS  T30 insert in a HOT month accepted by the write window
+PASS  T31 next lifecycle run removes the empty stray partitions, archive intact
+PASS  T32 lifecycle succeeds after the application committed new HOT rows
+PASS  T41a archive of 2023-11 crashes after step 1  (got ORA-20020: Simulated failure after step 1)
+PASS  T41 run_lifecycle resumes the crashed archive (step 0a)
+PASS  T36 run_lifecycle(p_as_of => 2026-12) applies the policy one month later
+PASS  T40 lifecycle stops (ORA-20040) when a frozen month was altered  (got ORA-20040: Integrity validation failed for 1 month(s))
+PASS  T33 baseline lifecycle archives 24 months and keeps every retained row
+----------------------------------------------
+Tests passed: 43   failed: 0
+PL/SQL procedure successfully completed.
+Package dropped.
+STATUS	     COUNT(*)
+---------- ----------
+ERROR		    4
+OK		  230
+PLANNED 	   84
+REFUSED 	    7
+RESUMED 	    2
+5 rows selected.

@@ -1,0 +1,33 @@
+-- Q4 Open receivables (unpaid/disputed), last 6 months | baseline | BILLING_RECORDS_BASE
+select region_code, count(*) invoices, sum(amount + tax_amount) due
+                  from BILLING_RECORDS_BASE
+                  where payment_status in ('UNPAID', 'DISPUTED')
+                    and bill_date >= :d1 and bill_date < :d2
+                  group by region_code
+
+SQL_ID  6ygy69umts62g, child number 0
+-------------------------------------
+select region_code, count(*) invoices, sum(amount + tax_amount) due     
+              from BILLING_RECORDS_BASE                   where 
+payment_status in ('UNPAID', 'DISPUTED')                     and 
+bill_date >= :d1 and bill_date < :d2                   group by 
+region_code
+ 
+Plan hash value: 281705070
+ 
+------------------------------------------------------------------------------------
+| Id  | Operation           | Name                 | Rows  | Cost (%CPU)| Time     |
+------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT    |                      |       | 57598 (100)|          |
+|   1 |  HASH GROUP BY      |                      |    12 | 57598   (1)| 00:00:03 |
+|*  2 |   FILTER            |                      |       |            |          |
+|*  3 |    TABLE ACCESS FULL| BILLING_RECORDS_BASE |   150K| 57595   (1)| 00:00:03 |
+------------------------------------------------------------------------------------
+ 
+Predicate Information (identified by operation id):
+---------------------------------------------------
+ 
+   2 - filter(:D2>:D1)
+   3 - filter(("BILL_DATE">=:D1 AND INTERNAL_FUNCTION("PAYMENT_STATUS") AND 
+              "BILL_DATE"<:D2))
+ 

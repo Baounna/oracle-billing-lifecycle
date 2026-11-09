@@ -1,0 +1,13 @@
+PASS  A01 read history through the unified view
+PASS  A02 insert through the view rejected  (ORA-1031)
+PASS  A03 delete through the view rejected  (ORA-1031)
+PASS  A04 direct access to the base tables rejected  (ORA-942)
+PASS  A05 access to the application window rejected  (ORA-942)
+PASS  A06 LOCK TABLE on the unified view rejected (READ grant: cannot block the lifecycle job)	(ORA-1031)
+PASS  A07 update through the view rejected  (ORA-1031)
+PASS  A08 direct read of the archive table rejected  (ORA-942)
+PASS  A09 read of the retention policy rejected  (ORA-942)
+PASS  A10 SELECT ... FOR UPDATE on reference data rejected (READ grant)  (ORA-1031)
+PASS  A11 run a lifecycle job rejected	(ORA-6550)
+Security checks (TELCO_ANALYST) passed: 11   failed: 0
+PL/SQL procedure successfully completed.

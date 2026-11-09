@@ -1,0 +1,9 @@
+PL/SQL procedure successfully completed.
+Elapsed: 00:00:00.18
+ACTION	     MONTHS FIRST_MONTH 						 LAST_MONTH
+-------- ---------- ------------------------------------------------------------ ------------------------------------------------------------
+PURGE		  1 2021-10							 2021-10
+WARM		  1 2025-10							 2025-10
+ARCHIVE 	  1 2023-10							 2023-10
+3 rows selected.
+Elapsed: 00:00:00.01

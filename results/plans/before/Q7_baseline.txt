@@ -1,0 +1,39 @@
+-- Q7 Disputed bills in an archived month (2022-03) | baseline | BILLING_RECORDS_BASE
+select customer_id, count(*) records, sum(amount) total
+                  from BILLING_RECORDS_BASE
+                  where bill_date >= :d1 and bill_date < :d2 and payment_status = 'DISPUTED'
+                  group by customer_id
+                  order by total desc
+                  fetch first 20 rows only
+
+SQL_ID  6x08qrkb41ysz, child number 0
+-------------------------------------
+select customer_id, count(*) records, sum(amount) total                 
+  from BILLING_RECORDS_BASE                   where bill_date >= :d1 
+and bill_date < :d2 and payment_status = 'DISPUTED'                   
+group by customer_id                   order by total desc              
+     fetch first 20 rows only
+ 
+Plan hash value: 1157746856
+ 
+------------------------------------------------------------------------------------------
+| Id  | Operation                 | Name                 | Rows  | Cost (%CPU)| Time     |
+------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT          |                      |       | 55623 (100)|          |
+|   1 |  SORT ORDER BY            |                      |    20 | 55623   (1)| 00:00:03 |
+|*  2 |   VIEW                    |                      |    20 | 55622   (1)| 00:00:03 |
+|*  3 |    WINDOW SORT PUSHED RANK|                      |  3536 | 55622   (1)| 00:00:03 |
+|   4 |     HASH GROUP BY         |                      |  3536 | 55622   (1)| 00:00:03 |
+|*  5 |      FILTER               |                      |       |            |          |
+|*  6 |       TABLE ACCESS FULL   | BILLING_RECORDS_BASE |  3548 | 55620   (1)| 00:00:03 |
+------------------------------------------------------------------------------------------
+ 
+Predicate Information (identified by operation id):
+---------------------------------------------------
+ 
+   2 - filter("from$_subquery$_002"."rowlimit_$$_rownumber"<=20)
+   3 - filter(ROW_NUMBER() OVER ( ORDER BY SUM("AMOUNT") DESC )<=20)
+   5 - filter(:D2>:D1)
+   6 - filter(("PAYMENT_STATUS"='DISPUTED' AND "BILL_DATE"<:D2 AND 
+              "BILL_DATE">=:D1))
+ 

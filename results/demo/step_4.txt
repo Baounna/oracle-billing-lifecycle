@@ -1,0 +1,55 @@
+=== Rows of 2023-10 before the incident ===
+ROWS_2023_10
+------------
+      328606
+1 row selected.
+Elapsed: 00:00:00.03
+=== Archive job crashes right after step 1 (exchange out) ===
+BEGIN dlm_pkg.archive_partition(date '2023-10-01', p_simulate_failure => 'AFTER_STEP1'); END;
+*
+ERROR at line 1:
+ORA-20020: Simulated failure after step 1
+ORA-06512: at "TELCO_OWNER.DLM_PKG", line 388
+ORA-06512: at "TELCO_OWNER.DLM_PKG", line 336
+ORA-06512: at line 1
+Elapsed: 00:00:00.70
+=== Where is the data? Not lost: it waits in BILLING_XCHG ===
+ROWS_IN_EXCHANGE_TABLE
+----------------------
+		328606
+1 row selected.
+Elapsed: 00:00:00.00
+=== Integrity check (2021-10 .. 2023-10) detects the incomplete month ===
+MONTHS_IN_ERROR
+---------------
+	      1
+1 row selected.
+Elapsed: 00:00:07.25
+=== Recovery: simply re-run the job ===
+PL/SQL procedure successfully completed.
+Elapsed: 00:00:00.28
+ROWS_ARCHIVED
+-------------
+       328606
+1 row selected.
+Elapsed: 00:00:00.01
+ROWS_IN_EXCHANGE_TABLE
+----------------------
+		     0
+1 row selected.
+Elapsed: 00:00:00.00
+MONTHS_IN_ERROR
+---------------
+	      0
+1 row selected.
+Elapsed: 00:00:07.20
+=== Audit trail ===
+ACTION			       TARGET	    STATUS     MESSAGE
+------------------------------ ------------ ---------- ------------------------------------------------------------------------------------------
+VALIDATE		       BILLING_ALL  OK	       25/25 months match control totals (from 2021-10 to 2023-10)
+ARCHIVE 		       P_202310     OK	       resumed after interruption; exchanged into BILLING_ARCHIVE, read only
+ARCHIVE 		       2023-10	    RESUMED    found staged rows from an interrupted run - resuming at step 2
+VALIDATE		       BILLING_ALL  ERROR      24/25 months match control totals (from 2021-10 to 2023-10)
+ARCHIVE 		       P_202310     ERROR      SIMULATED FAILURE after step 1 (data is safe in BILLING_XCHG)
+5 rows selected.
+Elapsed: 00:00:00.01

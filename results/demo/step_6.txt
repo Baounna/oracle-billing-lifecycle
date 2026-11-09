@@ -1,0 +1,17 @@
+PASS  S01 read current billing data through the write window
+PASS  S02 insert a bill in a HOT month (rolled back)
+PASS  S03 late insert dated in an archived month (2022-03) rejected  (ORA-1402)
+PASS  S04 far-future insert (2030-01) rejected	(ORA-1402)
+PASS  S05 direct write into the base table rejected  (ORA-942)
+PASS  S06 delete billing records rejected  (ORA-1031)
+PASS  S07 update billing records rejected  (ORA-1031)
+PASS  S08 read archive table directly rejected	(ORA-942)
+PASS  S09 change retention policy rejected  (ORA-942)
+PASS  S10 run a lifecycle job rejected	(ORA-6550)
+PASS  S11 DDL rejected	(ORA-1031)
+PASS  S12 insert in the first non-HOT month (2025-10, window boundary) rejected  (ORA-14466)
+PASS  S13 insert just after the window (2027-01) rejected  (ORA-1402)
+PASS  S14 lock of reference data rejected (READ grant)	(ORA-1031)
+Security checks (TELCO_APP) passed: 14	 failed: 0
+PL/SQL procedure successfully completed.
+Elapsed: 00:00:00.09

@@ -1,0 +1,48 @@
+-- Q7 Disputed bills in an archived month (2022-03) | partitioned | BILLING_ALL
+select customer_id, count(*) records, sum(amount) total
+                  from BILLING_ALL
+                  where bill_date >= :d1 and bill_date < :d2 and payment_status = 'DISPUTED'
+                  group by customer_id
+                  order by total desc
+                  fetch first 20 rows only
+
+SQL_ID  ck9jk41hbknt5, child number 0
+-------------------------------------
+select customer_id, count(*) records, sum(amount) total                 
+  from BILLING_ALL                   where bill_date >= :d1 and 
+bill_date < :d2 and payment_status = 'DISPUTED'                   group 
+by customer_id                   order by total desc                   
+fetch first 20 rows only
+ 
+Plan hash value: 2344222733
+ 
+------------------------------------------------------------------------------------------------------------
+| Id  | Operation                        | Name            | Rows  | Cost (%CPU)| Time     | Pstart| Pstop |
+------------------------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                 |                 |       | 29209 (100)|          |       |       |
+|   1 |  SORT ORDER BY                   |                 |    20 | 29209   (1)| 00:00:02 |       |       |
+|*  2 |   VIEW                           |                 |    20 | 29208   (1)| 00:00:02 |       |       |
+|*  3 |    WINDOW SORT PUSHED RANK       |                 |  2737 | 29208   (1)| 00:00:02 |       |       |
+|   4 |     HASH GROUP BY                |                 |  2737 | 29208   (1)| 00:00:02 |       |       |
+|*  5 |      FILTER                      |                 |       |            |          |       |       |
+|   6 |       VIEW                       | BILLING_ALL     |  2741 | 29206   (1)| 00:00:02 |       |       |
+|   7 |        UNION-ALL                 |                 |       |            |          |       |       |
+|*  8 |         FILTER                   |                 |       |            |          |       |       |
+|   9 |          PARTITION RANGE ITERATOR|                 |     1 | 28736   (1)| 00:00:02 |   KEY |   KEY |
+|* 10 |           TABLE ACCESS FULL      | BILLING_RECORDS |     1 | 28736   (1)| 00:00:02 |   KEY |   KEY |
+|* 11 |         FILTER                   |                 |       |            |          |       |       |
+|  12 |          PARTITION RANGE ITERATOR|                 |  2740 |   470   (1)| 00:00:01 |   KEY |   KEY |
+|* 13 |           TABLE ACCESS FULL      | BILLING_ARCHIVE |  2740 |   470   (1)| 00:00:01 |   KEY |   KEY |
+------------------------------------------------------------------------------------------------------------
+ 
+Predicate Information (identified by operation id):
+---------------------------------------------------
+ 
+   2 - filter("from$_subquery$_002"."rowlimit_$$_rownumber"<=20)
+   3 - filter(ROW_NUMBER() OVER ( ORDER BY SUM("AMOUNT") DESC )<=20)
+   5 - filter(:D2>:D1)
+   8 - filter(:D2>:D1)
+  10 - filter(("BILL_DATE"<:D2 AND "PAYMENT_STATUS"='DISPUTED' AND "BILL_DATE">=:D1))
+  11 - filter(:D2>:D1)
+  13 - filter(("PAYMENT_STATUS"='DISPUTED' AND "BILL_DATE">=:D1 AND "BILL_DATE"<:D2))
+ 

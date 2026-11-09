@@ -1,0 +1,22 @@
+-- Q6 Revenue per year over the whole table (no date filter) | partitioned | BILLING_RECORDS
+select extract(year from bill_date) yr, sum(amount) revenue
+                  from BILLING_RECORDS
+                  group by extract(year from bill_date)
+
+SQL_ID  7ccg5hhhc5skw, child number 0
+-------------------------------------
+select extract(year from bill_date) yr, sum(amount) revenue             
+      from BILLING_RECORDS                   group by extract(year from 
+bill_date)
+ 
+Plan hash value: 2611856676
+ 
+------------------------------------------------------------------------------------------------
+| Id  | Operation            | Name            | Rows  | Cost (%CPU)| Time     | Pstart| Pstop |
+------------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT     |                 |       |   162K(100)|          |       |       |
+|   1 |  HASH GROUP BY       |                 |    23M|   162K  (1)| 00:00:07 |       |       |
+|   2 |   PARTITION RANGE ALL|                 |    23M| 56485   (1)| 00:00:03 |     1 |1048575|
+|   3 |    TABLE ACCESS FULL | BILLING_RECORDS |    23M| 56485   (1)| 00:00:03 |     1 |1048575|
+------------------------------------------------------------------------------------------------
+ 

@@ -1,0 +1,22 @@
+-- Q5 Single billing record lookup by id | baseline | BILLING_RECORDS_BASE
+select * from BILLING_RECORDS_BASE where record_id = :rid
+
+SQL_ID  bbckcvynn45sh, child number 0
+-------------------------------------
+select * from BILLING_RECORDS_BASE where record_id = :rid
+ 
+Plan hash value: 4153494229
+ 
+--------------------------------------------------------------------------------------------
+| Id  | Operation                   | Name                 | Rows  | Cost (%CPU)| Time     |
+--------------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT            |                      |       |     3 (100)|          |
+|   1 |  TABLE ACCESS BY INDEX ROWID| BILLING_RECORDS_BASE |     1 |     3   (0)| 00:00:01 |
+|*  2 |   INDEX UNIQUE SCAN         | BILLING_BASE_PK_IX   |     1 |     2   (0)| 00:00:01 |
+--------------------------------------------------------------------------------------------
+ 
+Predicate Information (identified by operation id):
+---------------------------------------------------
+ 
+   2 - access("RECORD_ID"=:RID)
+ 

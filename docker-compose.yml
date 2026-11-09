@@ -1,0 +1,23 @@
+# Tools container used to run the benchmark and SQLcl.
+# The Oracle database itself is the existing class container (oracle19c),
+# reached through the host port 1521.
+#
+#   docker compose --env-file .env build tools
+#   docker compose --env-file .env run --rm tools python -m bench.run_benchmark
+#   docker compose --env-file .env run --rm tools sql TELCO_ANALYST@//host.docker.internal:1521/orclpdb1
+services:
+  tools:
+    build: ./docker/tools
+    image: telco-dlm-tools:1.0
+    # Only what the benchmark needs (not the app/analyst passwords). Values come
+    # from the env file passed with --env-file by scripts/05_benchmark.sh.
+    environment:
+      ORACLE_HOST: host.docker.internal
+      ORACLE_PORT: ${ORACLE_PORT:-1521}
+      ORACLE_PDB_SERVICE: ${ORACLE_PDB_SERVICE:-orclpdb1}
+      TELCO_OWNER_PASSWORD: ${TELCO_OWNER_PASSWORD:?set in the env file}
+      ROWS_PER_MONTH: ${ROWS_PER_MONTH:-330000}
+    volumes:
+      - .:/work
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
