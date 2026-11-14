@@ -44,8 +44,8 @@
   \item \textbf{Reduce the warm cost:} use \code{NOLOGGING} moves followed by a backup (only
         without a standby), warm several months in parallel off-peak, or switch to a local
         primary key on \code{(record\_id, bill\_date)} if the application can accept it.
-  \item \textbf{Schedule and serialise} the monthly job with \code{DBMS\_SCHEDULER} and a
-        \code{DBMS\_LOCK} lock, with alerting on \code{ERROR} or \code{REFUSED} log entries.
+  \item \textbf{Schedule} the monthly job with \code{DBMS\_SCHEDULER} (runs are already
+        serialised by the job lock), with alerting on \code{ERROR} or \code{REFUSED} log entries.
   \item \textbf{Archive statistics:} gather table-level synopses on \code{BILLING\_XCHG}
         before each exchange, so exchanged partitions arrive with incremental synopses.
   \item \textbf{Tiered storage:} place \code{TELCO\_ARCH} on cheaper storage and make archive

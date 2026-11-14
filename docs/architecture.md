@@ -202,5 +202,6 @@ the target month is already read-only; tests T27, T28, S03, S04, S12, S13).
 | Application or analyst alters or deletes billing history | fraud, loss of evidence | least privilege (no UPDATE/DELETE), read-only frozen partitions, write window view | owner account can still change anything (should be locked in production, DLM run by a scheduler) |
 | Purge of data still under legal retention | legal non-compliance | guards in `purge_partition` / `purge_month` + `MIN_RETENTION_MONTHS` floor, refusals logged | owner can change `DLM_CONFIG` (should be audited) |
 | Lifecycle job blocked (locks) | maintenance not done, growth | `READ` grants (no LOCK TABLE / FOR UPDATE for read-only accounts), `ddl_lock_timeout` 60 s | the application (INSERT privilege) can still hold locks |
+| Two lifecycle runs at the same time | months mixed in `BILLING_XCHG` | `DBMS_LOCK` user lock on every `DLM_PKG` entry point; a second run gets ORA-20050 | none known |
 | Silent data loss during archiving | loss of billing data | zero-copy exchange, resumable steps, row counts, control totals, run stops on mismatch (ORA-20040) | totals re-captured at freeze time (by design) |
 | Disk exhaustion on the shared laptop | database and host stop | tablespace, UNDO and TEMP caps; host free-space checks | caps total ~22 GB, larger than the free space on this laptop |
