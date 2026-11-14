@@ -1,0 +1,57 @@
+\chapter{Discussion and Future Improvements}\label{ch:discussion}
+
+\section{Strengths}
+
+\begin{itemize}
+  \item \textbf{Measured, not claimed.} Every gain comes from the same data and workload on
+        both designs, with plans, raw JSON and test outputs in the repository.
+  \item \textbf{Retention as metadata.} Archive and purge no longer depend on data volume. Their
+        cost stays flat as the business grows, while the baseline grows linearly.
+  \item \textbf{Safety by design.} Guards refuse illegal purges, frozen data is read-only, the
+        application can only write the hot window, every operation is logged and resumable,
+        and integrity is proved against control totals. The job stops if a frozen month
+        changes.
+  \item \textbf{Operations.} One command per month, a dry-run mode, the policy stored as data,
+        and readable partition names.
+\end{itemize}
+
+\section{Limitations and remaining risks}
+
+\begin{itemize}
+  \item \textbf{Licence.} Partitioning is a paid Enterprise Edition option. On Standard
+        Edition~2 the design would fall back to one table per month behind a \code{UNION ALL}
+        view, without basic compression (EE only) and with weaker pruning.
+  \item \textbf{Queries without a date filter} gain nothing (Q6), and multi-month lookups
+        through local indexes read a few more blocks (Q2).
+  \item \textbf{Warm cost.} It is probably dominated by maintenance of the global primary key (not measured separately); the
+        monthly job is 8.9$\times$ faster, not the 10$\times$ we targeted.
+  \item \textbf{No \code{record\_id} index on archived rows}: a lookup by \code{record\_id}
+        through \code{BILLING\_ALL} scans the archive partitions.
+  \item \textbf{Concurrency.} The application can still hold locks (its \code{INSERT} grant
+        allows \code{LOCK TABLE}), and two lifecycle runs are not serialised. Guards and row
+        counts prevent data loss, but a run can fail and must be re-run.
+  \item \textbf{Evaluation context.} One laptop, single-user measurements, synthetic data
+        (uniform customers, no corrections of old bills) and 24~million rows. Absolute times
+        are indicative; logical reads and redo are the reliable comparisons.
+  \item \textbf{Owner privileges.} \code{TELCO\_OWNER} can change the policy and read
+        PDB-wide \code{V\$SQL}. In production it would be locked, and the job would run under
+        a scheduler with auditing on \code{DLM\_CONFIG}.
+\end{itemize}
+
+\section{Possible improvements}\label{sec:improvements}
+
+\begin{enumerate}
+  \item \textbf{Reduce the warm cost:} use \code{NOLOGGING} moves followed by a backup (only
+        without a standby), warm several months in parallel off-peak, or switch to a local
+        primary key on \code{(record\_id, bill\_date)} if the application can accept it.
+  \item \textbf{Schedule and serialise} the monthly job with \code{DBMS\_SCHEDULER} and a
+        \code{DBMS\_LOCK} lock, with alerting on \code{ERROR} or \code{REFUSED} log entries.
+  \item \textbf{Archive statistics:} gather table-level synopses on \code{BILLING\_XCHG}
+        before each exchange, so exchanged partitions arrive with incremental synopses.
+  \item \textbf{Tiered storage:} place \code{TELCO\_ARCH} on cheaper storage and make archive
+        tablespaces read-only, so backups of history are taken once.
+  \item \textbf{Measure under concurrency:} run the application workload during the lifecycle
+        job, and test on production-scale volumes.
+  \item \textbf{Audit:} Unified Auditing policies on \code{DLM\_CONFIG} and on lifecycle
+        procedures.
+\end{enumerate}

@@ -1,0 +1,140 @@
+% =============================================================================
+% Technical report - Project 22 (build: report/build.sh, XeLaTeX)
+% =============================================================================
+\documentclass[11pt,a4paper]{report}
+
+\usepackage{fontspec}
+\setmainfont{texgyrepagella}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold,
+  ItalicFont=*-italic, BoldItalicFont=*-bolditalic]
+\setsansfont{texgyreheros}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold,
+  ItalicFont=*-italic, BoldItalicFont=*-bolditalic]
+\setmonofont{Menlo}[Scale=0.82]
+
+\usepackage[margin=2.4cm, headheight=14pt]{geometry}
+\usepackage{graphicx}
+\graphicspath{{figures/}{../results/charts/}}
+\usepackage{booktabs, tabularx, longtable, array, multirow}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\usepackage{rotating}
+\usepackage{needspace}
+
+\definecolor{accent}{HTML}{1F5F7A}
+\definecolor{codebg}{HTML}{F5F7F9}
+\definecolor{codeframe}{HTML}{C9D3DB}
+\definecolor{comment}{HTML}{5E7A6E}
+
+\input{meta}
+
+% ---- headings ---------------------------------------------------------------
+\titleformat{\chapter}[hang]{\sffamily\huge\bfseries\color{accent}\raggedright}{\thechapter}{0.8em}{}
+\titlespacing*{\chapter}{0pt}{0pt}{18pt}
+\titleformat{\section}{\sffamily\Large\bfseries\color{accent}}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\sffamily\large\bfseries}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\sffamily\normalsize\bfseries}{}{0em}{}
+\setcounter{secnumdepth}{2}
+
+% ---- page style -------------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\sffamily\small \ProjectNumber}
+\fancyhead[R]{\sffamily\small\nouppercase{\leftmark}}
+\fancyfoot[C]{\sffamily\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\sffamily\small\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+% ---- lists, captions, tables ------------------------------------------------
+\setlist{itemsep=2pt, topsep=4pt}
+\captionsetup{font=small, labelfont={bf,sf}, margin=0.5cm}
+\renewcommand{\arraystretch}{1.18}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\setlength{\parskip}{4pt}
+
+% ---- code listings ----------------------------------------------------------
+\lstdefinestyle{base}{
+  basicstyle=\ttfamily\small, backgroundcolor=\color{codebg},
+  frame=single, rulecolor=\color{codeframe}, framesep=4pt,
+  breaklines=true, columns=fullflexible, keepspaces=true,
+  showstringspaces=false, tabsize=8, xleftmargin=4pt, xrightmargin=4pt,
+  aboveskip=8pt, belowskip=8pt}
+\lstdefinestyle{sql}{style=base, language=SQL, morekeywords={partition,interval,exchange,
+  including,indexes,without,validation,compress,basic,row,store,read,only,merge,using,matched,
+  replace,package,body,procedure,function,return,begin,end,loop,exception,raise,elsif,then,
+  if,is,as,declare,pragma,autonomous_transaction,execute,immediate,lock,move,tablespace,
+  global,local,rebuild,refresh,with,check,option},
+  keywordstyle=\color{accent}\bfseries, commentstyle=\color{comment}\itshape}
+\lstdefinestyle{console}{style=base, basicstyle=\ttfamily\footnotesize}
+\lstdefinestyle{bash}{style=base, language=bash, keywordstyle=\color{accent}\bfseries,
+  commentstyle=\color{comment}\itshape}
+\lstset{style=base}
+
+\newcommand{\codeus}{\textunderscore\allowbreak}
+\newcommand{\code}[1]{\texttt{\let\_\codeus #1}}
+\setlength{\emergencystretch}{3em}
+
+\begin{document}
+
+% =============================================================================
+\begin{titlepage}
+  \centering\sffamily
+  {\large \Institution\par}
+  \vspace{2pt}
+  {\normalsize \Program\par}
+  \vspace{1.6cm}
+  {\normalsize \Course\par}
+  \vspace{0.6cm}
+  {\color{accent}\rule{\linewidth}{1pt}\par}
+  \vspace{0.5cm}
+  {\Large\bfseries \ProjectNumber\par}
+  \vspace{0.3cm}
+  {\huge\bfseries\color{accent} \ProjectTitle\par}
+  \vspace{0.5cm}
+  {\color{accent}\rule{\linewidth}{1pt}\par}
+  \vspace{0.6cm}
+  {\large Technical Report\par}
+  \vspace{1.6cm}
+  \includegraphics[width=0.62\linewidth]{02_tiers_cover}
+  \vfill
+  \begin{tabular}{rl}
+    \textbf{Team} & \TeamMemberA \\
+                  & \TeamMemberB \\[6pt]
+    \textbf{Supervisor} & \Supervisor \\[6pt]
+    \textbf{Academic year} & \AcademicYear \\[6pt]
+    \textbf{Repository} & \small\url{\RepoURL}
+  \end{tabular}
+\end{titlepage}
+
+\pagenumbering{roman}
+\input{sections/00_abstract}
+\tableofcontents
+\listoffigures
+\listoftables
+\clearpage
+\pagenumbering{arabic}
+
+\input{sections/01_introduction}
+\input{sections/02_client}
+\input{sections/03_requirements}
+\input{sections/04_technology}
+\input{sections/05_architecture}
+\input{sections/06_environment}
+\input{sections/07_implementation}
+\input{sections/08_usage}
+\input{sections/09_testing}
+\input{sections/10_performance}
+\input{sections/11_challenges}
+\input{sections/12_discussion}
+\input{sections/13_conclusion}
+\input{sections/14_references}
+
+\appendix
+\input{sections/15_appendices}
+
+\end{document}

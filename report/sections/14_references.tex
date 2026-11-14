@@ -1,0 +1,29 @@
+\chapter*{References}
+\addcontentsline{toc}{chapter}{References}
+
+\begin{enumerate}[label={[\arabic*]}, leftmargin=*]
+  \item Oracle, \emph{Oracle Database VLDB and Partitioning Guide, 19c} -- interval
+        partitioning, partition exchange, read-only partitions, partition maintenance and
+        global index maintenance.
+  \item Oracle, \emph{Oracle Database SQL Language Reference, 19c} -- \code{ALTER TABLE ...
+        MOVE / EXCHANGE / DROP PARTITION}, \code{LOCK TABLE}, \code{CREATE VIEW ... WITH CHECK
+        OPTION}, \code{READ} object privilege.
+  \item Oracle, \emph{Oracle Database SQL Tuning Guide, 19c} -- incremental statistics,
+        partition pruning, \code{DBMS\_XPLAN}.
+  \item Oracle, \emph{Oracle Database PL/SQL Packages and Types Reference, 19c} --
+        \code{DBMS\_STATS}, \code{DBMS\_XPLAN}, \code{DBMS\_UTILITY}, \code{DBMS\_ASSERT}.
+  \item Oracle, \emph{Oracle Database Licensing Information User Manual, 19c} -- Partitioning,
+        Advanced Compression, Diagnostics and Tuning Packs, basic table compression.
+  \item Oracle, \emph{Oracle Database Reference, 19c} -- \code{V\$MYSTAT}, \code{V\$STATNAME},
+        \code{V\$SESSION}, \code{V\$SQL}, \code{USER\_TAB\_PARTITIONS}.
+  \item Oracle, \emph{docker-images} repository, \code{OracleDatabase/SingleInstance} build
+        files (\url{https://github.com/oracle/docker-images}).
+  \item \emph{python-oracledb documentation}, Oracle (\url{https://python-oracledb.readthedocs.io}).
+  \item Course material: \emph{General Project Guidelines} and \emph{Project 22} specification
+        (\code{docs/assignment/}).
+\end{enumerate}
+
+\paragraph{Use of AI tools.} An AI assistant (Claude) was used to help design and write
+scripts and documentation and to run code reviews. All code was executed and validated by the
+automated tests and the benchmark in the repository, and the team is responsible for the
+content of this report.

@@ -1,0 +1,127 @@
+\chapter{Team Organisation and Schedule}
+
+\section{Four-week plan}
+
+\begin{table}[H]
+\centering
+\caption{Project schedule}
+\begin{tabularx}{\linewidth}{lLL}
+\toprule
+Week & Activities & Outcome \\
+\midrule
+1 & Requirements, environment assessment, technology comparison, architecture, indicators & validated design, prepared environment (tablespace caps, accounts) \\
+2 & Schema, data generator, partitioned design, lifecycle and baseline packages & first working version \\
+3 & Functional and security tests, incident simulation, benchmark, review rounds and corrections & verifiable results \\
+4 & Final benchmark, demonstration rehearsal, report and presentation & final solution and defense \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Distribution of responsibilities}
+
+Both members can explain the whole solution. Each area has an owner, who presents it and
+answers first, and a reviewer.
+
+\begin{table}[H]
+\centering
+\caption{Responsibilities}
+\begin{tabularx}{\linewidth}{Lll}
+\toprule
+Area & Owner & Reviewer \\
+\midrule
+Requirements, client scenario, indicators, technology assessment & \TeamMemberA & \TeamMemberB \\
+Architecture, partitioning and indexing design & \TeamMemberA & \TeamMemberB \\
+Lifecycle package (\code{DLM\_PKG}) & \TeamMemberA & \TeamMemberB \\
+Environment, tablespaces, accounts, security & \TeamMemberB & \TeamMemberA \\
+Data generator, baseline design, data loading & \TeamMemberB & \TeamMemberA \\
+Functional, security and incident tests & \TeamMemberB & \TeamMemberA \\
+Benchmark harness and result analysis & \TeamMemberA & \TeamMemberB \\
+Demonstration, report and presentation & both & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\chapter{Lifecycle Package Interface}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=sql, caption={Specification of \code{DLM\_PKG} (abridged)}]
+create or replace package dlm_pkg authid definer as
+  function  get_param(p_name in varchar2) return varchar2;
+  function  as_of_month return date;
+  procedure log_event(p_run_id, p_job, p_action, p_target, p_rows, p_elapsed,
+                      p_status, p_message default null);      -- autonomous
+  function  partition_month(p_table in varchar2, p_partition in varchar2) return date;
+  function  partition_for(p_table in varchar2, p_month in date) return varchar2;
+  procedure rename_partitions(p_table in varchar2);
+  procedure warm_partition   (p_month in date, p_run_id in number default null,
+                              p_as_of in date default null);
+  procedure archive_partition(p_month in date, p_run_id in number default null,
+                              p_simulate_failure in varchar2 default null,
+                              p_as_of in date default null);
+  procedure purge_partition  (p_month in date, p_run_id in number default null,
+                              p_retention_months in pls_integer default null,
+                              p_as_of in date default null);
+  procedure refresh_app_window(p_as_of in date default null);
+  procedure run_lifecycle(p_as_of in date default null, p_dry_run in boolean default false);
+  procedure capture_control_totals(p_table in varchar2);
+  procedure capture_month_totals(p_table in varchar2, p_month in date);
+  function  validate_integrity(p_view in varchar2, p_from_month in date default null,
+                               p_run_id in number default null,
+                               p_to_month in date default null) return number;
+end dlm_pkg;
+\end{lstlisting}
+
+\begin{table}[H]
+\centering
+\caption{Error codes raised by the lifecycle code}
+\begin{tabularx}{\linewidth}{lL}
+\toprule
+Code & Meaning \\
+\midrule
+ORA-20010 & operation refused by a guard (retention, online or hot window, foreign staged month) \\
+ORA-20020 & simulated failure (tests and demonstration only) \\
+ORA-20030 & row count mismatch after an archive \\
+ORA-20040 & integrity validation failed at the end of a monthly run \\
+ORA-20098 & functional tests refused (wrong calendar, dataset not fresh or too large) \\
+ORA-20099 & one or more automated tests failed \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\chapter{Test Output (excerpt)}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=console, caption={\code{results/tests/functional\_tests.txt} (excerpt)}]
+PASS  T01 partitioned copy matches control totals
+PASS  T03 dry run plans 12 purges
+PASS  T07 purge refused when retention < legal floor (24 < 60)  (got ORA-20010 ...)
+PASS  T37 purge refused at the retention boundary (2021-11)  (got ORA-20010 ...)
+PASS  T12 simulated crash after exchange step 1  (got ORA-20020 ...)
+PASS  T13 no row lost during the crash: rows wait in BILLING_XCHG  (2404 rows staged)
+PASS  T15 re-run resumes and completes the archive
+PASS  T34 warm of a system-named partition rebuilds its local index (by position)
+PASS  T35 re-running an interrupted warm completes it (index rebuilt, read only)
+PASS  T42 every archive partition is compressed, read-only, in TELCO_ARCH
+PASS  T25 second run is a no-op (idempotent: no operation performed)
+PASS  T26 archived data cannot be modified (read-only partition)  (got ORA-14466 ...)
+PASS  T32 lifecycle succeeds after the application committed new HOT rows
+PASS  T41 run_lifecycle resumes the crashed archive (step 0a)
+PASS  T40 lifecycle stops (ORA-20040) when a frozen month was altered
+PASS  T33 baseline lifecycle archives 24 months and keeps every retained row
+----------------------------------------------
+Tests passed: 43   failed: 0
+\end{lstlisting}
+
+\chapter{Reproducing the Results}
+
+\begin{lstlisting}[style=bash]
+git clone https://github.com/Baounna/oracle-billing-lifecycle.git && cd oracle-billing-lifecycle
+scripts/init_env.sh
+scripts/01_setup_db.sh && scripts/02_create_schema.sh && scripts/03_load_data.sh
+scripts/05_benchmark.sh              # results/summary.md, results/charts/
+# functional and security tests on the smoke dataset:
+(umask 077; sed -e 's/^ROWS_PER_MONTH=.*/ROWS_PER_MONTH=3000/' \
+                -e 's/^CUSTOMERS=.*/CUSTOMERS=5000/' .env > .env.smoke)
+( export ENV_FILE=$PWD/.env.smoke; scripts/reset.sh --yes && scripts/01_setup_db.sh \
+  && scripts/02_create_schema.sh && scripts/03_load_data.sh && scripts/04_run_tests.sh )
+\end{lstlisting}

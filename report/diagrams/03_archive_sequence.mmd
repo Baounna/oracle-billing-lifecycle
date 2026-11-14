@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant J as archive_partition
+    participant R as BILLING_RECORDS (month M)
+    participant X as BILLING_XCHG
+    participant A as BILLING_ARCHIVE
+    participant L as DLM_JOB_LOG
+    J->>X: rows left by an interrupted run?
+    alt rows of month M staged
+        J->>L: RESUMED
+    else normal path
+        J->>R: warm first if needed, count rows, READ WRITE
+        J->>R: EXCHANGE PARTITION with X (update global indexes)
+        Note over R,X: metadata swap - no row copied
+    end
+    J->>A: LOCK PARTITION FOR (M) - creates the interval partition
+    J->>A: EXCHANGE PARTITION with X (including indexes)
+    J->>A: verify row count, READ ONLY
+    J->>R: DROP the empty partition (update global indexes)
+    J->>L: OK (rows, elapsed)

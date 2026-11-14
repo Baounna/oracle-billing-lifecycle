@@ -1,0 +1,61 @@
+\chapter{General Introduction}
+
+\section{Context}
+
+Billing is one of the largest data sets of a telecom operator. Each call, SMS, data session
+and roaming event becomes a billed line, and those lines must be kept for years for customer
+care, finance, disputes and legal audits. In many companies this history accumulates in the
+same table that the billing application writes to every day. The table grows without limit,
+and work that was cheap when it held one year of data becomes slow with six.
+
+This project was carried out within the \Course{} course. Its brief (Project 22) asks for a
+data lifecycle strategy that combines partitioning where it is licensed, indexing, archiving
+and performance benchmarking, and for proof of its effect on comparable workloads.
+
+\section{Motivation}
+
+Three symptoms of the client's current design drive the work:
+
+\begin{itemize}
+  \item \textbf{Reports slow down every month.} A report on last month's revenue reads the
+        whole six-year table, because one month is too large a share of the rows for an
+        index to help.
+  \item \textbf{Retention is expensive.} Removing a month means \code{DELETE}-ing hundreds of
+        thousands of rows. Every row and every index entry generates undo and redo, and the
+        table does not even shrink afterwards.
+  \item \textbf{Retention is manual and risky.} Nothing prevents someone from deleting data
+        that is still under legal retention, and nothing proves afterwards that no billing
+        record was lost or changed.
+\end{itemize}
+
+\section{Problem statement}
+
+\emph{How can the billing history be organised so that frequent reports read only the period
+they need, old data moves to cheaper storage and is removed at the end of its retention with
+near-zero cost, while guaranteeing, and proving, that no billing record is lost or altered?}
+
+\section{Objectives}
+
+\begin{enumerate}
+  \item Generate a representative, reproducible billing history (tens of millions of rows).
+  \item Measure the performance of the current design on a defined workload: the
+        \emph{baseline}.
+  \item Design a partitioned schema and a lifecycle policy (hot, warm, archive, purge) suited
+        to the client's retention rules and licences.
+  \item Implement the lifecycle as automated, guarded, logged and recoverable database code.
+  \item Measure query, maintenance and storage effects on the same workload, and verify data
+        integrity objectively.
+  \item Document the licensing restrictions, trade-offs and limits of the solution.
+\end{enumerate}
+
+\section{Structure of the report}
+
+Chapter~\ref{ch:client} presents the client. Chapters~\ref{ch:requirements}
+and~\ref{ch:technology} analyse the requirements and compare the possible technologies.
+Chapter~\ref{ch:architecture} describes the architecture, and
+Chapters~\ref{ch:environment} and~\ref{ch:implementation} the environment and the
+implementation. Chapter~\ref{ch:usage} shows practical scenarios. Chapters~\ref{ch:testing}
+and~\ref{ch:performance} present the tests and the measured results.
+Chapters~\ref{ch:challenges} to~\ref{ch:conclusion} discuss the difficulties, the limits and
+the outcome. All the code, test outputs and benchmark data are in the project repository
+(\url{\RepoURL}).

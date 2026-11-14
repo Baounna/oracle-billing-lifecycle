@@ -1,0 +1,189 @@
+\chapter{Solution Implementation}\label{ch:implementation}
+
+\section{Repository organisation}
+
+\begin{lstlisting}[style=console]
+scripts/       numbered entry points (setup, schema, load, tests, benchmark, demo, reset)
+sql/00_admin   tablespaces, accounts, teardown                       (SYSDBA)
+sql/01_schema  DLM infrastructure, reference data, billing tables,
+               data generator, DLM_PKG, BASELINE_PKG, grants        (TELCO_OWNER)
+sql/02_data    history load, partitioned copy
+sql/03_tests   functional and security tests (assertions, exit code)
+sql/04_demo    demonstration steps
+python/bench   benchmark harness and report
+results/       benchmark JSON, summary, charts, execution plans, test and demo outputs
+docs/, report/ documentation, diagrams and this report
+\end{lstlisting}
+
+All scripts share \code{scripts/lib.sh}. It loads \code{.env}, runs SQL*Plus inside the
+database container with \code{WHENEVER SQLERROR EXIT FAILURE} and \code{SET VERIFY OFF}, and
+pipes the SQL and the connection string through standard input, so no password appears on a
+command line.
+
+\section{Data generation}
+
+The history is generated inside the database with set-based SQL: one direct-path
+\code{INSERT /*+ APPEND */} per month. It produces 23.76~million rows in about three minutes.
+\code{ORA\_HASH(n, buckets, seed)} replaces random functions, so the dataset, and therefore
+every benchmark, is identical from one run to the next. The distribution is realistic: 50\,\%
+data, 30\,\% voice, 15\,\% SMS and 5\,\% roaming. Volume grows linearly from 70\,\% to
+130\,\% of the average month. Recent months contain unpaid bills, and old months are settled.
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=sql, caption={Generator core (excerpt of \code{04\_datagen.sql})}]
+select n,
+       #FIRST_ID# + n                                     as record_id,
+       ora_hash(n, #CUSTS# - 1, #SEED#) + 1               as customer_id,
+       #MONTH# + ora_hash(n, #SECS#, #SEED# + 1) / 86400  as bill_date,
+       case when h < 50 then 'DATA' when h < 80 then 'VOICE'
+            when h < 95 then 'SMS'  else 'ROAMING' end     as service_type,
+       ...
+from (select level as n, ora_hash(level, 99, #SEED# + 6) as h
+      from dual connect by level <= #ROWS#)
+\end{lstlisting}
+
+The same history is first loaded into the baseline heap table, with its three indexes, and
+then copied by one direct-path insert into the partitioned table, where interval partitioning
+creates the 72 monthly partitions. At load time, \code{capture\_control\_totals} records the
+row count, the amount total and the sum of a fingerprint of every column for each month. A
+first validation proves that the partitioned copy matches the baseline exactly (72/72 months).
+
+\section{Partitioned schema}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=sql, caption={Partitioned and archive tables (excerpt of \code{03\_billing\_tables.sql})}]
+create table billing_records
+  tablespace telco_hot
+  partition by range (bill_date) interval (numtoyminterval(1, 'MONTH'))
+  ( partition p_initial values less than (date '2020-11-01') )
+  as select * from billing_records_base where 1 = 0;
+
+create table billing_archive
+  tablespace telco_arch
+  row store compress basic
+  partition by range (bill_date) interval (numtoyminterval(1, 'MONTH'))
+  ( partition p_initial values less than (date '2020-11-01') )
+  as select * from billing_records_base where 1 = 0;
+\end{lstlisting}
+
+Interval partitions get system names (\code{SYS\_P123}).
+\code{dlm\_pkg.rename\_partitions} evaluates each partition's \code{HIGH\_VALUE} and renames the
+table partitions, and the matching local index partitions (matched by position), to
+\code{P\_YYYYMM}.
+
+\section{The lifecycle package \texttt{DLM\_PKG}}
+
+Every operation works on one month, refuses what the policy protects, logs its result in an
+autonomous transaction and can be re-run safely. Partition DDL first sets
+\code{ddl\_lock\_timeout = 60}, so it waits for the application's in-flight transactions
+instead of failing at once.
+
+\subsection{WARM: freeze, capture, move}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=sql, caption={Core of \code{warm\_partition}}]
+-- 1. Freeze FIRST: READ ONLY waits for in-flight transactions on the month
+--    and blocks new ones, so nothing can change between capture and move.
+set_read_only(c_main, l_part, true);
+if not (l_ts = 'TELCO_ARCH' and l_comp = 'ENABLED') then
+  -- 2. The frozen content becomes the integrity reference.
+  capture_month_totals(c_main, l_month);
+  -- 3. MOVE is allowed on a read-only partition (rows are not changed).
+  execute immediate 'alter table ' || c_main || ' move partition ' || l_part ||
+                    ' tablespace telco_arch row store compress basic update global indexes';
+end if;
+-- 4. Rebuild the local index partition in TELCO_ARCH (also completes an
+--    interrupted warm); index partitions are matched by position, not by name.
+rebuild_local_indexes(l_part);
+\end{lstlisting}
+
+The order of these steps came out of a review. An earlier version captured the totals before
+setting the partition read-only, so a bill committed between the two steps made every later
+validation fail. We verified on the database that \code{MOVE PARTITION} is allowed on a
+read-only partition, while \code{DROP PARTITION} is not (ORA-14466); this allowed the
+freeze-first order.
+
+\subsection{ARCHIVE: two exchanges, resumable}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=sql, caption={Core of \code{archive\_partition} (simplified)}]
+-- step 0: rows left in BILLING_XCHG by an interrupted run? -> resume at step 2
+if not l_resumed then
+  if not is_warm(l_month) then warm_partition(l_month, p_run_id, l_as_of); end if;
+  l_rows := count_partition(c_main, l_part);
+  set_read_only(c_main, l_part, false);
+  execute immediate 'alter table billing_records exchange partition ' || l_part ||
+    ' with table billing_xchg including indexes without validation update global indexes';
+end if;
+execute immediate 'lock table billing_archive partition for (' || date_literal(l_month)
+                  || ') in share mode';                     -- creates the partition
+execute immediate 'alter table billing_archive exchange partition ' || l_apart ||
+                  ' with table billing_xchg including indexes without validation';
+if count_partition(c_archive, l_apart) <> l_rows then
+  raise_application_error(-20030, 'Row count mismatch ...');
+end if;
+set_read_only(c_archive, l_apart, true);
+-- step 3: drop the now empty online partition (update global indexes)
+\end{lstlisting}
+
+The procedure refuses any month still inside the 36-month online window. It warms a month
+that is not yet warm, so the archive is always compressed. It never truncates the staging
+table: if \code{BILLING\_XCHG} holds rows of a different month, it stops and asks for a
+manual check.
+
+\subsection{PURGE and guards}
+
+\code{purge\_partition} drops the month's partition in the archive (or in the online table if
+it was never archived). It refuses (\code{ORA-20010}, logged as \code{REFUSED}) any month
+inside the retention period, and any requested retention shorter than
+\code{MIN\_RETENTION\_MONTHS}, even if an operator passes another value.
+
+\subsection{Integrity validation}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=sql, caption={Row fingerprint used by the control totals}]
+ora_hash(record_id || '|' || invoice_id || '|' || customer_id || '|' || plan_id || '|' ||
+         to_char(bill_date, 'YYYYMMDDHH24MISS') || '|' || service_type || '|' ||
+         region_code || '|' || duration_sec || '|' || to_char(volume_mb, 'FM99999990.00') ||
+         '|' || to_char(amount, 'FM99999990.00') || '|' ||
+         to_char(tax_amount, 'FM99999990.00') || '|' || payment_status)
+\end{lstlisting}
+
+\code{validate\_integrity} compares, month by month, the row count, the amount total and the
+sum of these fingerprints in a view (\code{BILLING\_ALL}) with the control totals. Months
+before the retention cut must be absent. Hot months are live, so the monthly job validates
+frozen months only; their totals are re-captured at the moment they are frozen.
+
+\section{Application write window}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=sql, caption={View recreated by \code{refresh\_app\_window} (as of 2026-11)}]
+create or replace view billing_current_v as
+  select * from billing_records
+  where bill_date >= date '2025-11-01' and bill_date < date '2027-01-01'
+  with check option constraint billing_current_v_ck;
+\end{lstlisting}
+
+The application has \code{INSERT} and \code{READ} only on this view. A late row dated in an
+archived month, or far in the future, is rejected. During testing we found that Oracle still
+creates the (empty) interval partition for a rejected row, because partition creation is
+autonomous. The monthly job therefore drops empty partitions outside the window.
+
+\section{Baseline package}
+
+\code{BASELINE\_PKG} reproduces the client's current method with the same policy, the same
+guards and the same operation order: archive = \code{INSERT INTO ... SELECT} followed by
+\code{DELETE}, and purge = \code{DELETE}. The comparison therefore measures the technique,
+not different rules.
+
+\section{Benchmark harness}
+
+\code{python/bench} connects as the owner from the tools container. Around every measured
+operation it reads \code{V\$MYSTAT} (logical reads, physical reads, redo, undo, CPU) and the
+elapsed time. For queries it fetches the execution plan with
+\code{DBMS\_XPLAN.DISPLAY\_CURSOR} using the cursor's \code{prev\_sql\_id}. Each query is run
+once to warm up and five times measured, with identical SQL and binds on both designs. The run
+order is: queries on the full history; two monthly loads with statistics refreshes; lifecycle
+of both designs; queries again; storage and integrity. Results are saved after every operation
+to \code{results/benchmark\_results.json}, and \code{bench.report} produces the summary and the
+charts.

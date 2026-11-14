@@ -1,0 +1,9 @@
+flowchart TB
+    NEW(["New month - INTERVAL creates the partition"]) --> HOT
+    HOT["HOT - 0 to 12 months<br/>BILLING_RECORDS, TELCO_HOT, uncompressed<br/>read/write through the application window"]
+    WARM["WARM - 13 to 36 months<br/>BILLING_RECORDS, TELCO_ARCH, BASIC compression<br/>READ ONLY"]
+    ARCH["ARCHIVE - 37 to 60 months<br/>BILLING_ARCHIVE, TELCO_ARCH, compressed<br/>READ ONLY"]
+    GONE(["Purged - older than 60 months"])
+    HOT -- "warm_partition: freeze, capture totals, MOVE + COMPRESS" --> WARM
+    WARM -- "archive_partition: 2 x EXCHANGE PARTITION (no row copied)" --> ARCH
+    ARCH -- "purge_partition: DROP PARTITION (metadata only)" --> GONE

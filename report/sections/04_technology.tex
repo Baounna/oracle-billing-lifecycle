@@ -1,0 +1,102 @@
+\chapter{Technology Assessment and Justification}\label{ch:technology}
+
+\section{Database platform}
+
+The brief allows Oracle Database Free \emph{if supported by the selected version} or a
+licensed 19c when required. We checked the course container before choosing:
+\code{V\$OPTION} reports \code{Partitioning = TRUE}, and a test interval-partitioned table
+could be created and dropped.
+
+\begin{table}[H]
+\centering
+\caption{Database platform options}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{3.4cm}LL>{\raggedright\arraybackslash}p{2.1cm}}
+\toprule
+Option & Advantages & Drawbacks & Decision \\
+\midrule
+Oracle Database 23ai Free & free, recent, partitioning available & 12~GB user data, 2~GB RAM, not the course environment & not needed \\
+Oracle 19c EE (course container) & installed, Partitioning option present, long-term support release used by most companies & EE and Partitioning are paid options in production & \textbf{chosen} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Data segmentation}
+
+\begin{table}[H]
+\centering
+\caption{Segmentation options}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{3.4cm}LL>{\raggedright\arraybackslash}p{2.1cm}}
+\toprule
+Option & Advantages & Drawbacks & Decision \\
+\midrule
+Single heap table + indexes (current) & simple & full scans for period reports; retention by \code{DELETE} & baseline \\
+One table per month + \code{UNION ALL} view & works without the Partitioning option & views to regenerate monthly, inserts must be routed, weaker pruning with binds & documented alternative \\
+Range partitioning with a job creating partitions & standard & inserts fail if the job is late & rejected \\
+\textbf{Interval-range partitioning by month on \code{bill\_date}} & partitions created automatically, pruning, partition-level maintenance & Partitioning option, system-generated names & \textbf{chosen} \\
+Composite range-list (by service) & finer pruning on service & more segments; the workload does not filter on service alone & rejected \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A \textbf{month} is the right partition unit because the retention rule, the billing cycle
+and most reports are monthly. One month holds about 230\,000 to 430\,000 rows (20--35~MB),
+so each partition can be scanned, moved, exchanged or dropped in seconds.
+
+\section{Archiving method}
+
+\begin{table}[H]
+\centering
+\caption{Archiving options}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{3.4cm}LL>{\raggedright\arraybackslash}p{2.1cm}}
+\toprule
+Option & Advantages & Drawbacks & Decision \\
+\midrule
+\code{INSERT ... SELECT} + \code{DELETE} (current) & simple & copies and deletes every row; large redo and undo; table does not shrink & baseline \\
+Data Pump export of old partitions + drop & data leaves the database & no longer queryable in SQL; restore needed for audits & rejected (F3) \\
+\textbf{Exchange partition into an archive table} & metadata operation; archive stays queryable & global index maintenance; identical structures required & \textbf{chosen} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Compression and licensing}
+
+\begin{table}[H]
+\centering
+\caption{Compression options}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{4.2cm}L>{\raggedright\arraybackslash}p{3.6cm}}
+\toprule
+Option & Licence & Decision \\
+\midrule
+\textbf{BASIC} (\code{ROW STORE COMPRESS BASIC}) & included in Enterprise Edition (not available in SE2) & \textbf{chosen} for read-only data \\
+ADVANCED (OLTP) & Advanced Compression option & not used (licence) \\
+Hybrid Columnar Compression & Exadata or engineered storage only & not available \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+BASIC compression only compresses direct-path operations, and conventional updates on
+compressed blocks are inefficient. That fits warm and archived data, which is written once by
+\code{MOVE PARTITION} and then made read-only. The measurement method relies only on
+base-product views (\code{V\$MYSTAT}, \code{V\$SQL}, \code{DBMS\_XPLAN.DISPLAY\_CURSOR}).
+We deliberately did not use AWR, ASH or SQL Monitor, which need the Diagnostics and Tuning
+Packs.
+
+\section{Tooling}
+
+\begin{table}[H]
+\centering
+\caption{Tooling choices}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{3cm}>{\raggedright\arraybackslash}p{4.6cm}L}
+\toprule
+Need & Choice & Reason \\
+\midrule
+Lifecycle logic & PL/SQL package & runs next to the data, transactional logging, schedulable \\
+Data generation & set-based SQL with \code{ORA\_HASH} & millions of rows per minute, deterministic \\
+Benchmark harness & Python 3.12 + python-oracledb & session statistics, plans, JSON, charts \\
+SQL clients & SQL*Plus (DB container), SQLcl (tools) & nothing installed on the host \\
+Automation & Bash scripts + Docker Compose & reproducible on any Docker host \\
+Demonstration interface & Streamlit web dashboard (tools image) & every scenario by clicks, no terminal; calls the same package \\
+Version control & Git, GitHub & required by the brief \\
+\bottomrule
+\end{tabularx}
+\end{table}

@@ -1,0 +1,141 @@
+\chapter{Practical Usage Examples}\label{ch:usage}
+
+The following scenarios were executed on the full dataset (23.76 million rows) during the
+demonstration rehearsal. The outputs below are copied from \code{results/demo/}, with blank
+lines and timing lines removed. Before step~1 the policy had been applied as of the previous
+month (2026-10), so the scenarios show the routine monthly situation.
+
+Every scenario can also be run from a web dashboard (\code{scripts/07\_dashboard.sh}, then
+\url{http://localhost:8501}). It is built with Streamlit and shows the tiers, the business query
+on both designs, the dry run, the incident and its recovery, the monthly job and the security
+checks, each started by one button. The dashboard calls the same \code{DLM\_PKG} procedures as
+the scripts, and serialises write operations so two clicks cannot run a job twice.
+\code{scripts/07\_dashboard.sh --fresh} reloads the data and prepares the demonstration state.
+
+\section{Scenario 1 -- State of the tiers}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=console, caption={\code{scripts/06\_demo.sh 1} (excerpt)}]
+=== BILLING_RECORDS partitions by tier ===
+TIER     TABLESPACE_N COMPRESS PARTITIONS FIRST_PART LAST_PART    NUM_ROWS
+-------- ------------ -------- ---------- ---------- ---------- ----------
+HOT      TELCO_HOT    DISABLED         13 P_202510   P_202610      5359479
+WARM     TELCO_ARCH   ENABLED          24 P_202310   P_202509      8656225
+=== BILLING_ARCHIVE partitions ===
+PARTITIONS FIRST_PART LAST_PART    NUM_ROWS
+---------- ---------- ---------- ----------
+        24 P_202110   P_202309      7049916
+\end{lstlisting}
+
+Each tier is in the expected tablespace and format. Retained history is split between the
+online table (hot + warm) and the archive.
+
+\section{Scenario 2 -- Month-end revenue report (business scenario)}
+
+Finance asks for October 2026 revenue by service. The same statement runs on both designs and
+returns identical results (4 rows: 128\,397 voice, 64\,382 SMS, 214\,795 data and 21\,426
+roaming lines).
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=console, caption={Execution plans of the same query on both designs}]
+-- Baseline (heap table)
+| Id  | Operation          | Name                 | Rows  |
+|   0 | SELECT STATEMENT   |                      |       |
+|   1 |  HASH GROUP BY     |                      |     4 |
+|   2 |   TABLE ACCESS FULL| BILLING_RECORDS_BASE |   336K|
+
+-- Partitioned design
+| Id  | Operation               | Name            | Rows  | Pstart| Pstop |
+|   0 | SELECT STATEMENT        |                 |       |       |       |
+|   1 |  HASH GROUP BY          |                 |     4 |       |       |
+|   2 |   PARTITION RANGE SINGLE|                 |   429K|    73 |    73 |
+|   3 |    TABLE ACCESS FULL    | BILLING_RECORDS |   429K|    73 |    73 |
+\end{lstlisting}
+
+The baseline must read the whole six-year table. One month is about 1.8\,\% of the rows,
+still too many for the \code{bill\_date} index. The partitioned plan reads one partition. For
+interval partitioning, Pstart/Pstop is the interval number counted from the first partition
+(month 73), not the partition's current position.
+
+\section{Scenario 3 -- Dry run of the monthly job}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=console, caption={\code{exec dlm\_pkg.run\_lifecycle(p\_dry\_run => true)} for 2026-11}]
+ACTION       MONTHS FIRST_MONTH   LAST_MONTH
+-------- ---------- ------------- ------------
+PURGE             1 2021-10       2021-10
+WARM              1 2025-10       2025-10
+ARCHIVE           1 2023-10       2023-10
+\end{lstlisting}
+
+The operator can check exactly what the job will do before anything changes.
+
+\section{Scenario 4 -- Incident: archive job crashes, then recovers}
+
+We simulate a crash right after the first exchange of the archive of 2023-10
+(\code{p\_simulate\_failure => 'AFTER\_STEP1'}).
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=console, caption={Incident and recovery (\code{scripts/06\_demo.sh 4}, 16 s in total)}]
+=== Rows of 2023-10 before the incident ===
+     328606
+=== Archive job crashes right after step 1 (exchange out) ===
+ORA-20020: Simulated failure after step 1
+=== Where is the data? Not lost: it waits in BILLING_XCHG ===
+ROWS_IN_EXCHANGE_TABLE      328606
+=== Integrity check (2021-10 .. 2023-10) detects the incomplete month ===
+MONTHS_IN_ERROR             1
+=== Recovery: simply re-run the job ===
+PL/SQL procedure successfully completed.
+ROWS_ARCHIVED               328606
+ROWS_IN_EXCHANGE_TABLE      0
+MONTHS_IN_ERROR             0
+=== Audit trail ===
+ACTION    TARGET       STATUS   MESSAGE
+VALIDATE  BILLING_ALL  OK       25/25 months match control totals (from 2021-10 to 2023-10)
+ARCHIVE   P_202310     OK       resumed after interruption; exchanged into BILLING_ARCHIVE, read only
+ARCHIVE   2023-10      RESUMED  found staged rows from an interrupted run - resuming at step 2
+VALIDATE  BILLING_ALL  ERROR    24/25 months match control totals (from 2021-10 to 2023-10)
+ARCHIVE   P_202310     ERROR    SIMULATED FAILURE after step 1 (data is safe in BILLING_XCHG)
+\end{lstlisting}
+
+No row was lost. The integrity check detected the incomplete month, a simple re-run resumed
+at step~2, and the audit trail records each event.
+
+\section{Scenario 5 -- Guard and monthly job}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=console, caption={Guard, then the monthly job for 2026-11 (46 s)}]
+SQL> exec dlm_pkg.purge_partition(date '2022-01-01', p_retention_months => 24)
+ORA-20010: PURGE 2022-01 refused: requested retention 24 months is below the
+           legal floor of 60 months
+
+SQL> exec dlm_pkg.run_lifecycle
+ACTION     STATUS     OPERATIONS  TOTAL_SEC ROWS_PROCESSED
+---------- ---------- ---------- ---------- --------------
+PURGE      OK                  1        .07         261676
+WARM       OK                  1       3.22         395535
+VALIDATE   OK                  1      15.57
+RUN_END    OK                  1      45.51
+MESSAGE: 48/48 months match control totals (from 2021-11 to 2025-10)
+
+=== Archived history is still one query away (BILLING_ALL) ===
+DISPUTED_2022_03        2740
+\end{lstlisting}
+
+Purging a month of 261\,676 rows took 0.07~s. Compressing one month took 3.2~s. Most of the
+46-second run is statistics and the validation of the 48 frozen months (16~s).
+
+\section{Scenario 6 -- What the billing application cannot do}
+
+\needspace{0.3\textheight}
+\begin{lstlisting}[style=console, caption={Asserted security checks as \code{TELCO\_APP} (excerpt)}]
+PASS  S02 insert a bill in a HOT month (rolled back)
+PASS  S03 late insert dated in an archived month (2022-03) rejected  (ORA-1402)
+PASS  S05 direct write into the base table rejected  (ORA-942)
+PASS  S06 delete billing records rejected  (ORA-1031)
+PASS  S09 change retention policy rejected  (ORA-942)
+PASS  S10 run a lifecycle job rejected  (ORA-6550)
+PASS  S14 lock of reference data rejected (READ grant)  (ORA-1031)
+Security checks (TELCO_APP) passed: 14   failed: 0
+\end{lstlisting}

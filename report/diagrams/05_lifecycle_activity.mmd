@@ -1,0 +1,14 @@
+flowchart TD
+    S([run_lifecycle as_of]) --> W1["Refresh application window<br/>(closes months about to be frozen)"]
+    W1 --> R0{"Rows staged in<br/>BILLING_XCHG?"}
+    R0 -- yes --> RES["Resume that archive<br/>(step 2 of the exchange)"]
+    R0 -- no --> E0
+    RES --> E0["Drop empty partitions outside<br/>the application window"]
+    E0 --> RO["Re-apply READ ONLY to<br/>archive partitions"]
+    RO --> P["PURGE every month<br/>older than RETENTION_MONTHS"]
+    P --> W["WARM every month older than<br/>HOT_MONTHS not yet warm"]
+    W --> A["ARCHIVE every month older<br/>than ONLINE_MONTHS"]
+    A --> ST["Incremental statistics"]
+    ST --> V{"Frozen months match<br/>control totals?"}
+    V -- yes --> OK([RUN_END OK])
+    V -- no --> KO(["ORA-20040<br/>job stops, operator alerted"])

@@ -1,0 +1,25 @@
+\chapter{General Conclusion}\label{ch:conclusion}
+
+The client's billing history had become a single, ever-growing table: reports were slow,
+retention was an expensive \code{DELETE}, and nothing proved that billing data stayed intact.
+We replaced this with a monthly partitioned design and a lifecycle package that moves each
+month through four tiers: hot, warm (compressed and read-only), archive and purge. Every step
+is guarded, logged, resumable and validated.
+
+The client's objectives are met. Date-bounded reports read up to 97 times fewer blocks, and
+single-month reports run 14 to 43 times faster. Archiving a month takes 0.4~s instead of 26~s,
+purging one 0.02~s instead of 5~s, and the whole monthly job is 8.9 times faster with 3.8 times less redo.
+Retained data uses 44\,\% less storage. All retained months match their control totals after
+the whole policy. The solution passes 43 functional tests and 25 security checks, including a
+crash in the middle of an archive, late inserts into old months and a deliberately corrupted
+month, which the job detects and refuses to accept.
+
+The project also showed where partitioning does not help. Queries without a date filter gain
+nothing, local indexes add a few reads to multi-month lookups, and the global primary key makes
+compression the main cost of the new design. These trade-offs, the licensing constraints and
+the limits of a laptop evaluation are documented so the DBA Manager can decide with full
+information.
+
+Beyond the numbers, the main lesson is method. Each claim is backed by a measurement or a
+test, each result can be reproduced from the repository, and each review round found real
+defects that we corrected before reporting the results.

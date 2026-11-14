@@ -1,0 +1,84 @@
+\chapter{Testing and Validation}\label{ch:testing}
+
+\section{Methodology}
+
+We used three levels of tests:
+
+\begin{enumerate}
+  \item \textbf{Automated functional tests} (\code{sql/03\_tests/01\_functional\_tests.sql}):
+        43 checks in PL/SQL. Each prints \code{PASS} or \code{FAIL}, and the script exits
+        non-zero if any check fails. The tests apply the whole lifecycle, so they run on a
+        freshly loaded \emph{smoke} dataset (216\,000 rows, same calendar). A precondition
+        refuses to run them on a dataset larger than 2~million rows, so the benchmark data
+        cannot be destroyed by mistake.
+  \item \textbf{Asserted security tests}: 25 checks run as \code{TELCO\_APP} (14) and
+        \code{TELCO\_ANALYST} (11). Each expects a precise result (success or a given Oracle
+        error code).
+  \item \textbf{Full-scale validation}: the benchmark (Chapter~\ref{ch:performance}) and the
+        demonstration rehearsal (Chapter~\ref{ch:usage}) on 23.76~million rows, both ending
+        with an integrity validation.
+\end{enumerate}
+
+Running \code{scripts/04\_run\_tests.sh} deletes earlier outputs, then writes new ones to
+\code{results/tests/}.
+
+\section{Functional test scenarios}
+
+\begin{longtable}{lp{0.72\linewidth}}
+\caption{Functional tests (all 43 pass)}\label{tab:functional}\\
+\toprule
+Tests & What is verified \\
+\midrule
+\endfirsthead
+\toprule
+Tests & What is verified \\
+\midrule
+\endhead
+T01--T02 & Partitioned copy equals the baseline (control totals); one partition per month. \\
+T03--T06 & Dry run plans 12 purges, 48 warm moves and 24 archives, and changes nothing (partitions, tablespaces, compression, read-only). \\
+T07--T11, T37--T39 & Guards: purge below the legal floor, purge inside retention, archive inside the online window, warm of a hot month; the last three are also tested at their exact boundary month; all refusals logged. \\
+T12--T17 & Crash after exchange step 1: no row lost (data in \code{BILLING\_XCHG}), integrity check detects it, re-run resumes and completes, logged as \code{RESUMED}, integrity restored. \\
+T34--T35 & Warm of a system-named partition rebuilds its local index (matched by position); a warm interrupted after the move is completed by a re-run. \\
+T18--T24, T42 & Full run: 36 online months, 24 archived, 24 warm months compressed, read-only and in \code{TELCO\_ARCH}, 12 hot months untouched, nothing older than retention, integrity, all indexes usable, all archive partitions compressed and read-only. \\
+T25 & Second run is a no-op (no operation performed, same partitions, integrity). \\
+T26 & Archived data cannot be modified (ORA-14466). \\
+T27--T31 & Late and far-future inserts rejected by the window; only empty partitions remain; an insert in a hot month is accepted; the next run removes the empty partitions. \\
+T32 & The monthly job still succeeds after the application commits new rows in a hot month. \\
+T41 & A crashed archive is resumed automatically by the monthly job itself. \\
+T36 & \code{run\_lifecycle(p\_as\_of => 2026-12)} applies the policy one month later, and every operation uses that month. \\
+T40 & A deliberately altered frozen month stops the monthly job (ORA-20040). \\
+T33 & The baseline lifecycle archives 24 months and keeps every retained row. \\
+\bottomrule
+\end{longtable}
+
+\section{Security test scenarios}
+
+\begin{table}[H]
+\centering
+\caption{Security checks (all 25 pass)}
+\begin{tabularx}{\linewidth}{lL}
+\toprule
+Account & Verified \\
+\midrule
+\code{TELCO\_APP} & \textbf{Allowed:} read the window, insert in a hot month. \textbf{Rejected:} inserts in an archived month, in the first non-hot month (window boundary), far in the future or just after the window; direct writes to the base table; delete; update; reading the archive table; changing the retention policy; running lifecycle procedures; DDL; locking reference data. \\
+\code{TELCO\_ANALYST} & \textbf{Allowed:} read the history through \code{BILLING\_ALL}. \textbf{Rejected:} insert, update or delete through the view; \code{LOCK TABLE} and \code{SELECT ... FOR UPDATE} (the \code{READ} grant); direct access to the base tables, the archive, the application window or the policy; running lifecycle procedures. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Verification of the acceptance criteria}
+
+\begin{table}[H]
+\centering
+\caption{Acceptance criteria}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{5.2cm}lL}
+\toprule
+Criterion & Status & Evidence \\
+\midrule
+The design preserves data integrity & met & T01, T17, T23, T31, T33, T40; 62/62 months after the benchmark \\
+Retention operations work correctly & met & T03--T42, job log, demonstration \\
+Improvements measured on comparable workloads & met & Chapter~\ref{ch:performance} \\
+Licensing and trade-offs documented & met & Chapters~\ref{ch:technology}, \ref{ch:discussion} \\
+\bottomrule
+\end{tabularx}
+\end{table}

@@ -1,0 +1,28 @@
+flowchart LR
+    subgraph Clients
+        APP["Billing application<br/>TELCO_APP"]
+        ANA["Analysts / audit<br/>TELCO_ANALYST"]
+        OPS["DBA / scheduler<br/>TELCO_OWNER"]
+        BENCH["Benchmark harness<br/>(tools container)"]
+    end
+    subgraph DB["Oracle 19c EE - PDB ORCLPDB1 (container oracle19c)"]
+        LSN(["Listener :1521"])
+        APPV[["BILLING_CURRENT_V<br/>HOT window, WITH CHECK OPTION"]]
+        VIEW[["BILLING_ALL<br/>online + archive"]]
+        DLM{{"DLM_PKG<br/>warm / archive / purge"}}
+        BR[("BILLING_RECORDS<br/>monthly interval partitions<br/>HOT + WARM")]
+        XCH[("BILLING_XCHG<br/>exchange staging")]
+        BA[("BILLING_ARCHIVE<br/>compressed, read-only")]
+        META[("DLM_CONFIG<br/>DLM_JOB_LOG<br/>BILLING_CONTROL_TOTALS")]
+    end
+    APP -- "insert / read" --> APPV
+    ANA -- read --> VIEW
+    OPS -- execute --> DLM
+    BENCH -- "SQL over TCP" --> LSN
+    APPV --> BR
+    VIEW --> BR
+    VIEW --> BA
+    DLM -- "policy, log,<br/>integrity" --> META
+    DLM -- "move, compress,<br/>exchange, drop" --> BR
+    BR -- "exchange 1" --> XCH
+    XCH -- "exchange 2" --> BA

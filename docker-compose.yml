@@ -21,3 +21,26 @@ services:
       - .:/work
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # Web dashboard (scripts/07_dashboard.sh): the demo steps as buttons.
+  # Needs the app/analyst passwords for its security page. Published on the
+  # loopback interface only.
+  dashboard:
+    build: ./docker/tools
+    image: telco-dlm-tools:1.0
+    command: >-
+      streamlit run python/dashboard/app.py --server.address=0.0.0.0 --server.port=8501 --theme.base=light
+      --server.headless=true --browser.gatherUsageStats=false
+    environment:
+      ORACLE_HOST: host.docker.internal
+      ORACLE_PORT: ${ORACLE_PORT:-1521}
+      ORACLE_PDB_SERVICE: ${ORACLE_PDB_SERVICE:-orclpdb1}
+      TELCO_OWNER_PASSWORD: ${TELCO_OWNER_PASSWORD:?set in the env file}
+      TELCO_APP_PASSWORD: ${TELCO_APP_PASSWORD:?set in the env file}
+      TELCO_ANALYST_PASSWORD: ${TELCO_ANALYST_PASSWORD:?set in the env file}
+    ports:
+      - "127.0.0.1:8501:8501"
+    volumes:
+      - .:/work
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

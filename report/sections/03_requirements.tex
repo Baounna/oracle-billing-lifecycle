@@ -1,0 +1,99 @@
+\chapter{Requirements Analysis and Project Specifications}\label{ch:requirements}
+
+\section{Functional requirements}
+
+\begin{table}[H]
+\centering
+\caption{Functional requirements}
+\begin{tabularx}{\linewidth}{lL}
+\toprule
+ID & Requirement \\
+\midrule
+F1 & Store the billing history so that monthly and annual reports read only the period requested. \\
+F2 & Apply the retention policy automatically: hot (12 months), online (36 months), archive (until 60 months), purge after. \\
+F3 & Keep archived data queryable (audit, legal requests) through a single access point. \\
+F4 & Allow the retention parameters to change without modifying code. \\
+F5 & Provide a dry-run mode that shows what the job would do. \\
+F6 & Log every lifecycle action: what, when, how many rows, how long, result. \\
+F7 & Prove the integrity of billing data after every operation. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Technical and non-functional requirements}
+
+\begin{table}[H]
+\centering
+\caption{Technical requirements}
+\begin{tabularx}{\linewidth}{lL}
+\toprule
+ID & Requirement \\
+\midrule
+T1 & Lifecycle operations must avoid copying or deleting rows one by one where possible. \\
+T2 & A failure in the middle of an operation must not lose data, and a re-run must recover. \\
+T3 & Data inside the legal retention can never be purged, whatever parameter is passed. \\
+T4 & Old billing data cannot be modified (by accidental updates or late inserts). \\
+T5 & Least privilege: the billing application cannot delete history or run lifecycle jobs, and analysts are read-only. \\
+T6 & No credentials in source code or in the Git repository. \\
+T7 & The whole solution must be reproducible from scripts on the course Docker environment. \\
+T8 & The lab must not exhaust the laptop disk. \\
+T9 & Use only licensed features, and document the licence impact. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Retention policy}
+
+The legal and business rules translate into four tiers, stored as parameters in the
+\code{DLM\_CONFIG} table rather than hard-coded:
+
+\begin{table}[H]
+\centering
+\caption{Retention policy parameters}
+\begin{tabularx}{\linewidth}{llL}
+\toprule
+Parameter & Value & Meaning \\
+\midrule
+\code{HOT\_MONTHS} & 12 & months kept uncompressed and writable \\
+\code{ONLINE\_MONTHS} & 36 & months kept in the online billing table (hot + warm) \\
+\code{RETENTION\_MONTHS} & 60 & legal retention; older months are purged \\
+\code{MIN\_RETENTION\_MONTHS} & 60 & safety floor: no purge may use a shorter retention \\
+\code{AS\_OF\_MONTH} & 2026-11 & reference ``today'', so that runs are reproducible \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Measurable indicators and acceptance criteria}
+
+We formalised the indicators after a first exploratory benchmark and before the final run
+whose numbers this report presents. The brief asks for indicators to be defined before
+testing, so we state this order openly. The indicators compare the two designs on the same
+data, with the same SQL text and bind values.
+
+\begin{table}[H]
+\centering
+\caption{Key performance indicators and targets}
+\label{tab:kpi}
+\begin{tabularx}{\linewidth}{lXl}
+\toprule
+KPI & Indicator & Target \\
+\midrule
+K1 & Month-end report (Q1): elapsed time and logical reads & $\geq$5$\times$ time, $\geq$10$\times$ LIO \\
+K2 & Audit query on an archived month (Q7) & $\geq$5$\times$ fewer LIO \\
+K3 & OLTP lookups (Q2 by customer, Q5 by id) & no time regression $>$2$\times$ \\
+K4 & Archive one month (and the whole monthly job) & $\geq$10$\times$ faster, $<$5~s \\
+K5 & Purge one month & $<$1~s \\
+K6 & Monthly load + statistics refresh & not slower than baseline \\
+K7 & Storage of the retained data & $\geq$25\,\% smaller \\
+K8 & Data integrity vs load-time control totals & 100\,\% of months \\
+K9 & Recovery after a crash & 0 rows lost, recovery = re-run \\
+K10 & Security controls (asserted checks) & 100\,\% \\
+K11 & Automation & one command per month \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The acceptance criteria of the brief are: (1) the design preserves data integrity,
+(2) retention operations work correctly, (3) query or maintenance improvements are measured
+on comparable workloads, and (4) licensing restrictions and technical trade-offs are
+documented. Chapter~\ref{ch:performance} checks each of them.

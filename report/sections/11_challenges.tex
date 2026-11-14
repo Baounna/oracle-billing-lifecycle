@@ -1,0 +1,31 @@
+\chapter{Challenges Encountered and Solutions}\label{ch:challenges}
+
+The work went through four review rounds. The last ones used independent reviewers who re-read
+the code without our conclusions; every finding was checked against the code, and on the
+database when Oracle's behaviour was uncertain. The main problems and their solutions follow.
+The full list is in \code{docs/work\_log.md}.
+
+\begin{longtable}{p{0.3\linewidth}p{0.3\linewidth}p{0.32\linewidth}}
+\caption{Main problems and corrective actions}\label{tab:challenges}\\
+\toprule
+Problem & Cause / analysis & Solution \\
+\midrule
+\endfirsthead
+\toprule
+Problem & Cause / analysis & Solution \\
+\midrule
+\endhead
+Laptop disk almost full; UNDO and TEMP could grow to 32~GB each & default autoextend of the course container & caps on every file, cleanup of unused images, free-space checks in the scripts \\
+\code{sqlplus / as sysdba} failed (ORA-12162) & \code{ORACLE\_SID} not set in \code{docker exec} shells & SID passed explicitly by \code{lib.sh} \\
+Partitions named \code{SYS\_Pnnn} & interval partitioning generates names & rename from \code{HIGH\_VALUE}; local index partitions matched by \emph{position} (their system names differ from the table's) \\
+The application could insert a row dated in an archived month; even after \code{ROLLBACK} an empty partition remained online & interval partition creation is autonomous & application write window (view \code{WITH CHECK OPTION}); the monthly job drops empty partitions outside the window \\
+Archive interrupted between the two exchanges & two DDL steps cannot be one transaction & staging table never truncated; next run detects staged rows and resumes; tested by a simulated crash \\
+A bill committed between the capture of a month's totals and its move made every later run fail & order of the warm steps & freeze first (READ ONLY waits for in-flight transactions), then capture, then move (verified: MOVE is allowed on a read-only partition) \\
+Read-only accounts could lock the tables and block the job & \code{SELECT} allows \code{LOCK TABLE} (verified on the DB) & \code{READ} grants; DDL waits up to 60~s for in-flight DML \\
+Passwords could appear in clear text & substitution into PL/SQL literals (visible in \code{V\$SQL}); SQL*Plus echoes a failing line & users created without a password inside PL/SQL, then passwords set by plain \code{ALTER USER}; no statement can fail \\
+First statistics refresh slower than the baseline (75~s) & all partitions seen as stale once after the 24~M-row migration & measured separately from the routine refresh (14~s); documented as a one-time cost \\
+Purge first measured on the online table & benchmark order did not match steady state & warm and archive first, then purge from the archive, for both designs \\
+Archive KPI excluded the warm step it depends on & the KPI compared one operation only & the whole monthly job is reported as well (8.9$\times$) \\
+Elapsed times of baseline full scans varied widely (0.5--2.6~s for the same query) & direct-path reads always go to disk & logical reads used as the primary indicator, medians of 5 runs \\
+\bottomrule
+\end{longtable}

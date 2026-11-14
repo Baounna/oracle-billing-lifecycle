@@ -1,0 +1,56 @@
+\chapter{Client Company Presentation}\label{ch:client}
+
+\section{Business sector and company}
+
+The client is a mobile telecom operator (a fictitious company created for this scenario)
+serving about 500\,000 subscribers in twelve regions. It sells prepaid, postpaid and business
+plans (twenty tariff plans) and bills four kinds of service: voice, SMS, mobile data and
+roaming. About 10\,\% of the customers are businesses.
+
+\section{IT environment}
+
+Billing is handled by an in-house application that writes billing lines into an Oracle
+database. Finance, customer care, collections and the legal department query the same data.
+The database team runs Oracle Database 19c Enterprise Edition, which already includes the
+Partitioning option in the client's licence. For this assignment, the database is a 19c
+container (Oracle 19.19, ARM64) running under Docker on a team member's laptop, with a single
+pluggable database \code{ORCLPDB1}.
+
+\section{Project sponsor}
+
+The project is sponsored by the \textbf{DBA Manager}. They are responsible for the
+performance of the billing database, the night maintenance window, and compliance with the
+retention rules defined by the legal department.
+
+\section{Business requirements}
+
+\begin{itemize}
+  \item Month-end finance reports and customer-care screens must stay fast even as history
+        grows.
+  \item Billing data must be kept for \textbf{60 months} (legal retention) and then deleted.
+  \item Data older than three years is rarely read but must stay queryable for audits and
+        disputes.
+  \item The billing application must never be blocked, and must never be able to change or
+        delete history.
+  \item Every retention action must be traceable and provably safe.
+\end{itemize}
+
+\section{Operational constraints}
+
+\begin{table}[H]
+\centering
+\caption{Operational constraints}
+\begin{tabularx}{\linewidth}{lL}
+\toprule
+Constraint & Description \\
+\midrule
+Availability & Lifecycle operations must not stop the billing application (partition-level work, short locks). \\
+Security & Least privilege, no credentials in code, read-only history, audit trail. \\
+Performance & Reports filtered on dates must read only the requested period. \\
+Licensing & Use only features covered by Enterprise Edition + Partitioning; no Advanced Compression, no Diagnostics/Tuning Packs. \\
+Resources & Laptop with Docker: 8 vCPU and about 8~GB of RAM for Docker; the disk was nearly full (about 20~GB free at the start). \\
+Schedule & Four weeks: design, implementation, tests and measurements, deliverables. \\
+Data & Synthetic, anonymised data only. \\
+\bottomrule
+\end{tabularx}
+\end{table}

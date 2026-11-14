@@ -1,0 +1,18 @@
+flowchart TB
+    subgraph HOST["Laptop - macOS (Apple silicon), Docker Desktop 29"]
+        subgraph C1["Container oracle19c"]
+            ORA["Oracle Database 19.19 EE<br/>CDB ORCLCDB / PDB ORCLPDB1<br/>listener :1521"]
+            VOL[("Volume oradata<br/>TELCO_HOT 7G cap / TELCO_IDX 4G<br/>TELCO_ARCH 4G / UNDO 4G / TEMP 3G")]
+        end
+        subgraph C2["Container tools (docker compose)"]
+            PY["Python 3.12<br/>python-oracledb 2.5.1, pandas, matplotlib"]
+            SQLCL["SQLcl 26.3"]
+        end
+        SH["Bash scripts<br/>scripts/01..06, lib.sh<br/>.env (mode 600)"]
+        REPO["Git repository<br/>results/, docs/, report/"]
+    end
+    SH -- "docker exec sqlplus (stdin)" --> ORA
+    PY -- "TCP host.docker.internal:1521" --> ORA
+    ORA --- VOL
+    PY -- "JSON, charts, plans" --> REPO
+    SH -- "test and demo outputs" --> REPO

@@ -1,0 +1,38 @@
+erDiagram
+    CUSTOMERS ||--o{ BILLING_RECORDS : "is billed"
+    TARIFF_PLANS ||--o{ BILLING_RECORDS : "prices"
+    BILLING_CONTROL_TOTALS ||--o{ BILLING_RECORDS : "controls (per month)"
+    TARIFF_PLANS {
+        number plan_id PK
+        string plan_name
+        string plan_type
+        number monthly_fee
+    }
+    CUSTOMERS {
+        number customer_id PK
+        string segment
+        string region_code
+        number plan_id FK
+        date signup_date
+        string status
+    }
+    BILLING_RECORDS {
+        number record_id PK
+        number invoice_id
+        number customer_id
+        number plan_id
+        date bill_date "partition key"
+        string service_type
+        string region_code
+        number duration_sec
+        number volume_mb
+        number amount
+        number tax_amount
+        string payment_status
+    }
+    BILLING_CONTROL_TOTALS {
+        date month_start PK
+        number row_count
+        number sum_amount
+        number hash_sum
+    }

@@ -1,0 +1,28 @@
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+A mobile telecom operator keeps six years of billing records in a single Oracle table. Monthly
+and audit reports slow down as the table grows, purging old data is a long \code{DELETE} that
+produces gigabytes of redo, and the legal retention rules are applied by hand. As two
+consultants, we were asked to design and evaluate a data lifecycle strategy that combines
+partitioning, indexing, compression and archiving, and to prove its effect with measurements.
+
+We built the solution on Oracle Database 19c Enterprise Edition (in Docker) and compared it
+with the client's current design on the same synthetic dataset of 23.76 million billing rows
+over 72 months. The optimised design partitions the billing table by month with interval
+partitioning. A PL/SQL package (\code{DLM\_PKG}) moves every month through four tiers. Hot
+months stay uncompressed and writable. Warm months are compressed and read-only. Archived
+months are moved to an archive table by two partition exchanges, without copying a row. Months
+past the 60-month legal retention are dropped. Each operation is guarded, logged, resumable
+after a crash, and validated against control totals captured when the data was loaded.
+
+Measured results: the month-end revenue report reads 54 times fewer blocks and runs 14 times
+faster; an audit query on an archived month is 43 times faster. Archiving one month takes
+0.42~s instead of 26~s, and purging one takes 0.02~s instead of 5.1~s. The full monthly job,
+including the compression step, is 8.9 times faster and produces 3.8 times less redo.
+Retained data uses 44\,\% less storage. All 62 retained months match their control totals.
+The solution passes 43 automated functional tests and 25 security checks.
+
+\paragraph{Keywords:} Oracle Database 19c, interval partitioning, partition exchange, data
+lifecycle management, archiving, basic table compression, partition pruning, retention policy,
+PL/SQL, performance benchmarking.
