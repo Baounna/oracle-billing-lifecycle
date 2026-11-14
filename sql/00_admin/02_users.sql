@@ -51,6 +51,9 @@ grant select on sys.v_$sql                     to telco_owner;
 grant select on sys.v_$sql_plan                to telco_owner;
 grant select on sys.v_$sql_plan_statistics_all to telco_owner;
 
+-- User lock that serialises lifecycle operations (DLM_PKG): base product.
+grant execute on sys.dbms_lock to telco_owner;
+
 -- ---- Application and analyst accounts: no quota, no DDL ----------------------
 alter user telco_app     default tablespace users temporary tablespace temp;
 alter user telco_analyst default tablespace users temporary tablespace temp;

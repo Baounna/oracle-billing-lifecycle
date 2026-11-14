@@ -82,6 +82,8 @@ end dlm_pkg;
 
 create or replace package body dlm_pkg as
 
+  c_job_lock constant integer := 220022;   -- DBMS_LOCK id of the lifecycle job lock
+
   -- ---------------------------------------------------------------------------
   function get_param(p_name in varchar2) return varchar2 is
     l_value dlm_config.param_value%type;
@@ -275,10 +277,39 @@ create or replace package body dlm_pkg as
   end refuse;
 
   -- ---------------------------------------------------------------------------
+  -- One lifecycle operation at a time: two sessions sharing BILLING_XCHG could
+  -- otherwise mix two months. A session-level user lock (DBMS_LOCK, base
+  -- product) is used because DDL commits would release a table or row lock.
+  -- Nested calls (run_lifecycle -> archive -> warm) already own it.
+
+  function take_job_lock(p_action in varchar2, p_month in date) return boolean is
+    l_rc integer;
+  begin
+    l_rc := dbms_lock.request(id => c_job_lock, lockmode => dbms_lock.x_mode,
+                              timeout => 0, release_on_commit => false);
+    if l_rc = 0 then
+      return true;
+    elsif l_rc = 4 then          -- already held by this session (nested call)
+      return false;
+    end if;
+    log_event(null, 'DLM', p_action, month_label(p_month), null, 0, 'REFUSED',
+              'another lifecycle operation is running');
+    raise_application_error(-20050, p_action || ' refused: another lifecycle operation is running');
+  end take_job_lock;
+
+  procedure release_job_lock(p_own in boolean) is
+    l_rc integer;
+  begin
+    if p_own then
+      l_rc := dbms_lock.release(c_job_lock);
+    end if;
+  end release_job_lock;
+
+  -- ---------------------------------------------------------------------------
   -- WARM: freeze the month (re-capture its control totals), move it to the
   -- archive tablespace with BASIC compression, rebuild its local index
   -- partition there, and make it read-only.
-  procedure warm_partition(p_month in date, p_run_id in number default null,
+  procedure warm_partition_impl(p_month in date, p_run_id in number default null,
                            p_as_of in date default null) is
     l_month  date := trunc(p_month, 'MM');
     l_as_of  date := nvl(trunc(p_as_of, 'MM'), as_of_month);
@@ -332,7 +363,7 @@ create or replace package body dlm_pkg as
       log_event(p_run_id, 'DLM', 'WARM', nvl(l_part, month_label(l_month)), null,
                 elapsed_since(l_t0), 'ERROR', sqlerrm);
       raise;
-  end warm_partition;
+  end warm_partition_impl;
 
   -- ---------------------------------------------------------------------------
   -- ARCHIVE: move one month from BILLING_RECORDS to BILLING_ARCHIVE without
@@ -344,7 +375,7 @@ create or replace package body dlm_pkg as
   -- compressed and stored in TELCO_ARCH.
   -- If the job dies between steps 1 and 2 the data waits safely in BILLING_XCHG;
   -- the next run detects it and resumes at step 2 (never truncates it).
-  procedure archive_partition(p_month in date, p_run_id in number default null,
+  procedure archive_partition_impl(p_month in date, p_run_id in number default null,
                               p_simulate_failure in varchar2 default null,
                               p_as_of in date default null) is
     l_month    date := trunc(p_month, 'MM');
@@ -397,6 +428,15 @@ create or replace package body dlm_pkg as
         log_event(p_run_id, 'DLM', 'ARCHIVE', l_part, 0, elapsed_since(l_t0), 'SKIPPED',
                   'empty partition dropped (nothing to archive)');
         return;
+      end if;
+
+      -- refuse BEFORE step 1, while the month is still in place
+      execute immediate 'select count(*) from ' || c_archive ||
+                        ' where bill_date >= :1 and bill_date < :2 and rownum = 1'
+        into l_staged using l_month, add_months(l_month, 1);
+      if l_staged > 0 then
+        refuse(p_run_id, 'DLM', 'ARCHIVE', month_label(l_month),
+               c_archive || ' already holds data for this month');
       end if;
 
       if not is_warm(l_month) then
@@ -468,12 +508,12 @@ create or replace package body dlm_pkg as
         when others then null;
       end;
       raise;
-  end archive_partition;
+  end archive_partition_impl;
 
   -- ---------------------------------------------------------------------------
   -- PURGE: drop a month that is past legal retention. Metadata operation:
   -- no DELETE, no undo, no redo for the rows.
-  procedure purge_partition(p_month in date, p_run_id in number default null,
+  procedure purge_partition_impl(p_month in date, p_run_id in number default null,
                             p_retention_months in pls_integer default null,
                             p_as_of in date default null) is
     l_month     date := trunc(p_month, 'MM');
@@ -494,6 +534,14 @@ create or replace package body dlm_pkg as
     if l_month >= add_months(l_as_of, -l_retention) then
       refuse(p_run_id, 'DLM', 'PURGE', month_label(l_month),
              'month is still inside the ' || l_retention || '-month retention period');
+    end if;
+
+    execute immediate 'select count(*) from ' || c_xchg ||
+                      ' where bill_date >= :1 and bill_date < :2 and rownum = 1'
+      into l_rows using l_month, add_months(l_month, 1);
+    if l_rows > 0 then
+      refuse(p_run_id, 'DLM', 'PURGE', month_label(l_month),
+             'rows of this month wait in ' || c_xchg || ': resume the archive first');
     end if;
 
     for t in (select c_archive as tab from dual union all select c_main from dual) loop
@@ -519,7 +567,7 @@ create or replace package body dlm_pkg as
       log_event(p_run_id, 'DLM', 'PURGE', month_label(l_month), null,
                 elapsed_since(l_t0), 'ERROR', sqlerrm);
       raise;
-  end purge_partition;
+  end purge_partition_impl;
 
   -- ---------------------------------------------------------------------------
   procedure refresh_app_window(p_as_of in date default null) is
@@ -544,7 +592,7 @@ create or replace package body dlm_pkg as
   end refresh_app_window;
 
   -- ---------------------------------------------------------------------------
-  procedure run_lifecycle(p_as_of in date default null, p_dry_run in boolean default false) is
+  procedure run_lifecycle_impl(p_as_of in date default null, p_dry_run in boolean default false) is
     type t_months is table of date;
     type t_names  is table of varchar2(128);
     l_as_of      date := nvl(trunc(p_as_of, 'MM'), as_of_month);
@@ -700,7 +748,7 @@ create or replace package body dlm_pkg as
 
     log_event(l_run_id, 'DLM', 'RUN_END', 'as_of=' || month_label(l_as_of), null,
               elapsed_since(l_t0), 'OK');
-  end run_lifecycle;
+  end run_lifecycle_impl;
 
   -- ---------------------------------------------------------------------------
   procedure merge_totals(p_source_sql in varchar2) is
@@ -767,6 +815,52 @@ create or replace package body dlm_pkg as
               case when p_to_month is not null then ' to ' || month_label(add_months(l_to, -1)) end || ')');
     return l_bad;
   end validate_integrity;
+
+  -- ---------------------------------------------------------------------------
+  -- Public entry points: take the job lock, run, always release it.
+  procedure warm_partition(p_month in date, p_run_id in number default null,
+                           p_as_of in date default null) is
+    l_own boolean := take_job_lock('WARM', trunc(p_month, 'MM'));
+  begin
+    warm_partition_impl(p_month, p_run_id, p_as_of);
+    release_job_lock(l_own);
+  exception
+    when others then release_job_lock(l_own); raise;
+  end warm_partition;
+
+  procedure archive_partition(p_month in date, p_run_id in number default null,
+                              p_simulate_failure in varchar2 default null,
+                              p_as_of in date default null) is
+    l_own boolean := take_job_lock('ARCHIVE', trunc(p_month, 'MM'));
+  begin
+    archive_partition_impl(p_month, p_run_id, p_simulate_failure, p_as_of);
+    release_job_lock(l_own);
+  exception
+    when others then release_job_lock(l_own); raise;
+  end archive_partition;
+
+  procedure purge_partition(p_month in date, p_run_id in number default null,
+                            p_retention_months in pls_integer default null,
+                            p_as_of in date default null) is
+    l_own boolean := take_job_lock('PURGE', trunc(p_month, 'MM'));
+  begin
+    purge_partition_impl(p_month, p_run_id, p_retention_months, p_as_of);
+    release_job_lock(l_own);
+  exception
+    when others then release_job_lock(l_own); raise;
+  end purge_partition;
+
+  procedure run_lifecycle(p_as_of in date default null, p_dry_run in boolean default false) is
+    l_own boolean := false;
+  begin
+    if not p_dry_run then     -- a dry run changes nothing: no lock needed
+      l_own := take_job_lock('RUN', nvl(trunc(p_as_of, 'MM'), as_of_month));
+    end if;
+    run_lifecycle_impl(p_as_of, p_dry_run);
+    release_job_lock(l_own);
+  exception
+    when others then release_job_lock(l_own); raise;
+  end run_lifecycle;
 
 end dlm_pkg;
 /

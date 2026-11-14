@@ -8,7 +8,7 @@
   ItalicFont=*-italic, BoldItalicFont=*-bolditalic]
 \setsansfont{texgyreheros}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold,
   ItalicFont=*-italic, BoldItalicFont=*-bolditalic]
-\setmonofont{Menlo}[Scale=0.82]
+\IfFontExistsTF{Menlo}{\setmonofont{Menlo}[Scale=0.82]}{\setmonofont{DejaVu Sans Mono}[Scale=0.82]}
 
 \usepackage[margin=2.4cm, headheight=14pt]{geometry}
 \usepackage{graphicx}

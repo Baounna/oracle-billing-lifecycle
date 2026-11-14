@@ -87,7 +87,7 @@ Observations:
 - Purged partitions release their space immediately; BASIC compression shrinks warm and
   archived months. The archive comparison mixes compression, one fewer index and the space
   the baseline did not release.
-- Retained data (online + archive): baseline 4 552 MB vs partitioned 2 570 MB (**-44 %**).
+- Retained data (online + archive): baseline 4 552 MB vs partitioned 2 562 MB (**-44 %**).
 
 ## 4. Data integrity and reliability
 

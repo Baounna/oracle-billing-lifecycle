@@ -28,8 +28,8 @@
   \item \textbf{No \code{record\_id} index on archived rows}: a lookup by \code{record\_id}
         through \code{BILLING\_ALL} scans the archive partitions.
   \item \textbf{Concurrency.} The application can still hold locks (its \code{INSERT} grant
-        allows \code{LOCK TABLE}), and two lifecycle runs are not serialised. Guards and row
-        counts prevent data loss, but a run can fail and must be re-run.
+        allows \code{LOCK TABLE}); a run then waits up to 60~s for its DDL and can fail and
+        must be re-run. Lifecycle runs themselves are serialised by a user lock.
   \item \textbf{Evaluation context.} One laptop, single-user measurements, synthetic data
         (uniform customers, no corrections of old bills) and 24~million rows. Absolute times
         are indicative; logical reads and redo are the reliable comparisons.

@@ -155,6 +155,13 @@ on the database before choosing a fix:
 | Datagen | `invoice_id` collides with >= 1 M customers (1) | Generator refuses such a scale | `04_datagen.sql` |
 
 Not changed (documented instead): statistics of archive partitions are re-computed after an
-exchange (no synopsis on `BILLING_XCHG`); concurrent lifecycle runs are not serialised
-(guards and row counts prevent data loss); synthetic-data realism limits (payment status per
+exchange (no synopsis on `BILLING_XCHG`); synthetic-data realism limits (payment status per
 line, bills before signup date).
+
+## Final review (pre-presentation)
+
+| Area | Finding | Fix |
+|---|---|---|
+| DLM_PKG | Two concurrent lifecycle runs share `BILLING_XCHG` and could mix two months | Entry points take a `DBMS_LOCK` user lock (released on exit and on error); a second run gets ORA-20050 |
+| DLM_PKG | "archive partition already contains data" was checked after exchange step 1 | Also checked before step 1, while the month is still online |
+| DLM_PKG | A direct purge could drop a month whose rows wait in `BILLING_XCHG` | Purge refuses it (resume the archive first) |

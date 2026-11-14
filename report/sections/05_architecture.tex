@@ -78,7 +78,10 @@ first closes the application window on the months it is about to freeze, then re
 interrupted archive, removes empty partitions left by rejected inserts, and re-applies
 read-only on archive partitions. It then purges, warms and archives, refreshes incremental
 statistics and validates every frozen month. If a frozen month differs from its control
-totals, the job stops with \code{ORA-20040} so that an operator investigates.
+totals, the job stops with \code{ORA-20040} so that an operator investigates. Only one
+lifecycle operation can run at a time: each entry point takes a session-level user lock
+(\code{DBMS\_LOCK}, base product), because two runs sharing \code{BILLING\_XCHG} could mix two
+months. A second run is refused at once with \code{ORA-20050}.
 
 \begin{figure}[H]
   \centering
